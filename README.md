@@ -15,6 +15,10 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000 in Chrome or Edge. Audio files and the demo tracks also work if you open `index.html` directly.
 
+## Tooltips
+
+Hover over any button, slider, menu or display for a short explanation, including its keyboard shortcut where there is one. On a touch screen, press and hold. Hot-cue tooltips show the cue's time.
+
 ## Simple view and full controls
 
 New visitors start in **Simple view**, which shows only what you need to pick songs, play them and crossfade. **Show all controls** (top right) reveals everything, and **Simple view** takes you back. The app remembers your choice.
@@ -29,12 +33,13 @@ Click **▶ Walkthrough** in the top-right corner. It also opens by itself on yo
 | 2 | Getting started | 4 | The practice songs, a deck, the waveform, play |
 | 3 | Matching beats | 6 | BPM, AUTO/TAP, the beat meter, SYNC, nudging, Beat Lock |
 | 4 | Mixing | 4 | Crossfader, EQ and kills, one-press transitions, hot cues |
-| 5 | Effects | 8 | Loop roll, gate and brake, filter, echo and tape, reverse, pads, masking, visuals |
-| 6 | Video mix & controllers | 2 | VJ screen, MIDI controller |
-| 7 | Sets, recording & sessions | 5 | Playlist, Auto-DJ, recording, sessions, FX presets |
-| 8 | Your own music | 3 | YouTube links, song files, AUTO on YouTube |
+| 5 | **Mixer in action (live demo)** | 15 | Every mixer control demonstrated on playing tracks: beat meter, Beat Lock, crossfader, all 5 transitions, every FX pad, quantize, sound masking |
+| 6 | Effects | 8 | Loop roll, gate and brake, filter, echo and tape, reverse, pads, masking, visuals |
+| 7 | Video mix & controllers | 2 | VJ screen, MIDI controller |
+| 8 | Sets, recording & sessions | 5 | Playlist, Auto-DJ, recording, sessions, FX presets |
+| 9 | Your own music | 3 | YouTube links, song files, AUTO on YouTube |
 
-Each step has a **Try it** action and a **Do it for me** button. Each chapter gets the practice songs ready itself, and finished chapters get a ✓.
+Each step has a **Try it** action and a **Do it for me** button. Live-demo steps also say what to **🎧 Listen for**. **▶ Auto-play chapter** runs a whole chapter hands-free, like a guided show. The live demo uses your own loaded tracks if both have a BPM, otherwise the practice songs. Each chapter gets the practice songs ready itself, and finished chapters get a ✓.
 
 ## Waveforms and EQ
 

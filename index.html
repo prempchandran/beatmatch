@@ -90,6 +90,8 @@
   #tourHead .dots i{width:7px;height:7px;border-radius:50%;background:#3a424e}
   #tourHead .dots i.past{background:#8a7a3a} #tourHead .dots i.now{background:var(--warn)}
   #tourCard.center{left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:440px}
+  #tourBody p.listen{background:#1d2633;border-left:3px solid var(--b);padding:7px 10px;border-radius:6px;color:var(--text)}
+  #tourBody #tourAuto{border-color:var(--b);color:var(--b)}
   #tourBody p.try{background:#2a2f22;border-left:3px solid var(--warn);padding:7px 10px;border-radius:6px;color:var(--text)}
   #tourBody #tourDo{border-color:var(--warn);color:var(--warn);margin-bottom:4px}
   #tourFoot{align-items:center}
@@ -100,6 +102,9 @@
   #tourBody .chap.done .num{background:var(--ok);color:#06210f}
   #tourBody .chap small{display:block;color:var(--mute);font-size:12px}
   #tourBody .chap:hover{border-color:var(--warn)}
+  /* tooltips */
+  #tip{position:fixed;z-index:70;max-width:270px;padding:7px 10px;border-radius:8px;background:#0b0e12;border:1px solid #3a4350;color:#e7ecf2;font-size:12px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}
+  #tip.show{opacity:1;transform:none}
   /* simple view: just pick, play and crossfade */
   .simplehint{display:none;color:var(--mute);font-size:12px;text-align:center;margin-top:10px}
   .credit{text-align:center;color:var(--mute);font-size:12px;letter-spacing:.06em;padding:4px 20px 28px}
@@ -794,7 +799,7 @@ function makeFile(d, url, label, dlName, key) {
   fetch(url).then(r => r.arrayBuffer()).then(ab => A.decodeAudioData(ab)).then(b => { s.buffer = b; buildWave(s); }).catch(() => {});
   setTimeout(() => applyEq(d), 0);
   s.playing = () => !el.paused && !el.ended;
-  s.play = () => { audio(); el.play().catch(() => {}); };
+  s.play = () => { audio(); if (d.echoRestore) d.echoRestore(); el.play().catch(() => {}); };
   s.pause = () => el.pause();
   s.rawTime = () => el.currentTime;
   s.seek = t => { el.currentTime = Math.max(0, t); };
@@ -1086,11 +1091,14 @@ function echoOut(d, then) {
   const n = d.src.n, t = ac.currentTime, b = (grid(d) || clock()).beatSec;
   n.send.gain.setTargetAtTime(.9, t, .01); n.fb.gain.setTargetAtTime(.68, t, .01);
   n.dry.gain.setValueAtTime(1, t); n.dry.gain.linearRampToValueAtTime(0, t + b);
-  setTimeout(() => { d.src.pause(); if (then) then(); }, b * 1000);
-  setTimeout(() => {
-    if (!d.src || d.src.kind !== 'file') return;
-    const t2 = ac.currentTime; n.dry.gain.setValueAtTime(1, t2); n.fb.gain.setValueAtTime(.5, t2); n.send.gain.setValueAtTime(d.echo ? .5 : 0, t2);
-  }, b * 1000 + 6000);
+  const src = d.src;
+  setTimeout(() => { if (d.src === src) d.src.pause(); if (then) then(); }, b * 1000);
+  // put the deck's dry signal back after the echo tail, or straight away if the deck is played again
+  d.echoRestore = () => {
+    d.echoRestore = null; if (d.src !== src) return;
+    const t2 = ac.currentTime; n.dry.gain.cancelScheduledValues(t2); n.dry.gain.setValueAtTime(1, t2); n.fb.gain.setValueAtTime(.5, t2); n.send.gain.setValueAtTime(d.echo ? .5 : 0, t2);
+  };
+  setTimeout(() => { if (d.echoRestore) d.echoRestore(); }, b * 1000 + 6000);
   return true;
 }
 // Tape delay: wow/flutter-modulated delay, saturated + band-limited feedback.
@@ -1418,7 +1426,7 @@ function renderCues(d) {
     const c = d.cues[i], set = c != null;
     b.classList.toggle('set', set);
     b.style.background = set ? CUE_COL[i] : '';
-    b.title = set ? `Cue ${i + 1} at ${fmtTime(c)}. Click to jump, Shift+click to delete` : `Empty. Click to set cue ${i + 1} here`;
+    b.dataset.tip = set ? `Hot cue ${i + 1} at ${fmtTime(c)}. Click to jump there (stays in time). Shift+click to delete.` : `Empty hot cue ${i + 1}: click to bookmark this spot (snapped to the beat).`;
   });
 }
 function cuePress(d, i, del) {
@@ -1685,7 +1693,7 @@ function renderQueue() {
     li.className = it.state === 'played' ? 'played' : on && isPlaying(on) ? 'playing' : '';
     li.innerHTML = `<span class="badge">${i + 1}.</span><span class="lbl"></span><span class="badge">${b === 'auto' ? 'BPM: auto' : b ? b + ' BPM' : 'no BPM yet'}${on ? ' · on ' + on.id : it.state === 'played' ? ' · played' : ''}</span>` +
       `<button data-a="A">A</button><button data-a="B">B</button><button data-a="up">↑</button><button data-a="dn">↓</button><button data-a="rm">✕</button>`;
-    $('.lbl', li).textContent = it.label; $('.lbl', li).title = it.label;
+    $('.lbl', li).textContent = it.label; $('.lbl', li).dataset.tip = it.label + '. Press A or B to load it onto a deck.';
     li.querySelectorAll('button').forEach(btn => btn.onclick = () => {
       const a = btn.dataset.a;
       if (a === 'A' || a === 'B') loadItem(it, decks[a]);
@@ -1933,6 +1941,168 @@ $('#preDel').onclick = () => {
 renderPresets();
 
 /* =====================================================================
+   TOOLTIPS — every control explains itself on hover (long-press on touch)
+   {D} = this deck, {O} = the other deck
+   ===================================================================== */
+const TIPS = [
+  // header
+  ['#modeBtn', 'Switch between Simple view (just load, play and crossfade) and every control.'],
+  ['#demoBtn', 'Load two practice songs: Deck A at 120 BPM and Deck B at 126 BPM, deliberately out of time.'],
+  ['#tourBtn', 'Open the step-by-step walkthrough. Each chapter has “Do it for me” buttons and Auto-play.'],
+  // deck: loading + display
+  ['.deck .url', 'Paste a YouTube link or video ID here, then press LOAD (or Enter).'],
+  ['.deck .load', 'Load the YouTube video in the box onto Deck {D}.'],
+  ['.deck .filebtn', 'Open a song or video file from your computer. Files unlock every effect. Put the BPM in the file name (e.g. song_124bpm.wav) to fill it in.'],
+  ['.deck .zoom', 'Scrolling waveform around the white playhead. Solid blocks = kicks, numbered lines = bars, coloured flags = cues. Click to jump.'],
+  ['.deck .overview', 'The whole song, with elapsed and remaining time. Click or drag to jump; on a synced deck it lands on the beat.'],
+  ['.deck .play', 'Play or pause Deck {D}. Key: {D} = 1, B = 0.'],
+  ['.deck .tap', 'Tap along with the kick drum 8+ times to set the BPM and beat position. Keys: Q (Deck A), P (Deck B).'],
+  ['.deck .auto', 'Detect the BPM and beat position automatically. YouTube decks listen to this tab for 10 seconds.'],
+  ['.deck .sync', 'Make Deck {D} follow Deck {O}: match its tempo, then line up the beats.'],
+  ['.deck .lights', 'Beat lights: flash on beats 1, 2, 3, 4 of each bar.'],
+  ['.deck .stat:nth-child(1)', 'Track BPM: the song’s own tempo.'],
+  ['.deck .stat:nth-child(2)', 'Speed: how fast the deck is playing (1.00× = normal).'],
+  ['.deck .stat:nth-child(3)', 'Playing BPM: the tempo you actually hear after the speed change.'],
+  ['.deck .bpmIn', 'Type the BPM if you know it.'],
+  ['.deck .half', 'Halve the BPM (if detection found double the real tempo).'],
+  ['.deck .dbl', 'Double the BPM (if detection found half the real tempo).'],
+  ['.deck .mark', 'Mark this exact moment as a beat. Press it right on a kick drum.'],
+  ['.deck .rateIn', 'Speed slider: 0.5× to 2×. Changes tempo without changing pitch (KEY LOCK on).'],
+  ['.deck .rdn', 'Slow down by 0.05×.'], ['.deck .rdn1', 'Slow down by 0.01×.'],
+  ['.deck .rreset', 'Back to normal speed (1.00×).'],
+  ['.deck .rup1', 'Speed up by 0.01×.'], ['.deck .rup', 'Speed up by 0.05×.'],
+  ['.deck .keylock', 'KEY LOCK keeps the pitch the same when you change speed. Off = faster sounds higher, like a turntable. Audio files only.'],
+  ['.deck [data-n="-100"]', 'Nudge Deck {D} 100 ms earlier.'], ['.deck [data-n="-20"]', 'Nudge Deck {D} 20 ms earlier (fine). Keys: N (A), Z (B).'],
+  ['.deck [data-n="20"]', 'Nudge Deck {D} 20 ms later (fine). Keys: M (A), X (B).'], ['.deck [data-n="100"]', 'Nudge Deck {D} 100 ms later.'],
+  ['.deck .beatBack', 'Jump back exactly one beat.'], ['.deck .beatFwd', 'Jump forward exactly one beat.'],
+  ['.deck .cue', 'Empty hot cue: click to bookmark this spot (snapped to the beat).'],
+  ['.deck .cueDel', 'Delete mode: press DEL, then the cue to remove (or Shift+click a cue).'],
+  ['.deck .vol', 'Channel volume for Deck {D}, on top of the crossfader.'],
+  ['.deck .eqr[data-band=low]', 'LOW EQ: bass and kick drum (−26 to +6 dB). Double-click to reset. Audio files only.'],
+  ['.deck .eqr[data-band=mid]', 'MID EQ: vocals, synths and snares (−26 to +6 dB). Double-click to reset. Audio files only.'],
+  ['.deck .eqr[data-band=high]', 'HIGH EQ: hi-hats and sparkle (−26 to +6 dB). Double-click to reset. Audio files only.'],
+  ['.deck .kill[data-band=low]', 'Kill the bass completely. DJs swap basslines by killing one deck’s LOW as the other comes in.'],
+  ['.deck .kill[data-band=mid]', 'Kill the mids completely (vocals and synths drop out).'],
+  ['.deck .kill[data-band=high]', 'Kill the highs completely (hats and cymbals drop out).'],
+  ['.deck .roll[data-len="2"]', 'Hold: repeat the last 2 beats. Let go and the song carries on in time.'],
+  ['.deck .roll[data-len="1"]', 'Hold: repeat the last beat. Let go and the song carries on in time.'],
+  ['.deck .roll[data-len="0.5"]', 'Hold: repeat the last ½ beat. Let go and the song carries on in time.'],
+  ['.deck .roll[data-len="0.25"]', 'Hold: repeat the last ¼ beat (stutter). Best on audio files.'],
+  ['.deck .gate[data-g="1"]', 'Gate: chop the sound on and off every beat. Click again to stop.'],
+  ['.deck .gate[data-g="2"]', 'Gate: chop the sound every ⅛ note. Click again to stop.'],
+  ['.deck .gate[data-g="4"]', 'Gate: fast 1/16 chop. Click again to stop.'],
+  ['.deck .gate[data-g="trance"]', 'Trance gate: a rhythmic on/off pattern locked to the beat. Click again to stop.'],
+  ['.deck .brake', 'Slow Deck {D} to a stop like a turntable losing power (the pitch dives on audio files).'],
+  ['.deck .bleep', 'Hold: cover Deck {D} with a censor bleep, like a radio edit.'],
+  ['.deck .filt', 'Filter: left = muffled (low-pass), right = thin (high-pass), middle = off. Audio files only.'],
+  ['.deck .filtReset', 'Turn the filter off.'],
+  ['.deck .echo', 'Echo that repeats every ¾ beat, in time with the music. Audio files only.'],
+  ['.deck .echoOut', 'Fade Deck {D} into its own echo, then stop it. A smooth way to end a song.'],
+  ['.deck .tape', 'Tape echo: a warm, wobbly echo like an old tape machine. Audio files only.'],
+  ['.deck .dive', 'Slow the tape: the echoes bend DOWN in pitch, then drift back.'],
+  ['.deck .rise', 'Speed the tape: the echoes bend UP in pitch, then drift back.'],
+  ['.deck .wow', 'Warble: how wobbly the tape echo sounds.'],
+  ['.deck .rev', 'Hold: play backwards (backmasking). The song keeps running silently, so you drop back in on time.'],
+  ['.deck .spin', 'Backspin: a fast reverse spin-down, then the deck stops.'],
+  ['.deck .vfx', 'Picture effects in time with the beat: strobe, colour steps, invert, blur, zoom, noir.'],
+  // mixer
+  ['.meter', 'Beat offset: how far Deck B’s beat is from Deck A’s. Green band = in time. Needle right = B ahead.'],
+  ['#lockBtn', 'BEAT LOCK: automatically pull the following deck back into time whenever it drifts.'],
+  ['#tol', 'How far (ms) the decks may drift before BEAT LOCK corrects them. Smaller = stricter.'],
+  ['#lat', 'Time YouTube takes to jump. If SYNC lands late on YouTube, raise it; early, lower it.'],
+  ['#xfader', 'Crossfader: left = Deck A, right = Deck B, middle = both. Keys: ← →'],
+  ['#xfCenter', 'Put the crossfader in the middle (both decks at full volume).'],
+  ['[data-tr=blend][data-len="8"]', 'Automatic 8-beat blend to the quieter deck, starting on the next bar (fades the old bass out too).'],
+  ['[data-tr=blend][data-len="16"]', 'Automatic 16-beat blend to the quieter deck, starting on the next bar.'],
+  ['[data-tr=cut]', 'Switch to the other deck instantly, exactly on the next bar.'],
+  ['[data-tr=brake]', 'On the next bar: brake the playing deck to a stop and cut to the other one.'],
+  ['[data-tr=echo]', 'On the next bar: echo the playing deck out and fade to the other one (audio files; YouTube brakes instead).'],
+  ['[data-pad=horn]', 'Air horn: the classic “bap bap bap baaap”, in time. Key: A'],
+  ['[data-pad=riser]', 'Riser: a whoosh that builds and ends exactly on a bar line. Key: S'],
+  ['[data-pad=impact]', 'Impact: a deep boom that lands on the next downbeat. Key: D'],
+  ['[data-pad=siren]', 'Siren: a 2-bar dub siren that wobbles in time. Key: F'],
+  ['[data-pad=laser]', 'Laser: four quick zaps on 1/16 notes. Key: G'],
+  ['[data-pad=snare]', 'Snare roll: an 8-beat build that speeds up and lands with an impact. Key: H'],
+  ['#quant', 'QUANTIZE: pads wait for the beat or bar so they land in time. Off = play instantly.'],
+  ['#fxEcho', 'Add a dotted-eighth echo to the FX pads.'],
+  ['#fxVol', 'Volume of the FX pads.'],
+  ['#maskType', 'Sound masking: lay white, pink, brown noise or vinyl crackle over the whole mix.'],
+  ['#maskPump', 'PUMP: duck the noise on every beat, like sidechain compression.'],
+  ['#maskLvl', 'How loud the masking noise is.'],
+  ['#maskTone', 'Darker (left) or brighter (right) masking noise.'],
+  ['#capBtn', 'Let the app hear this tab (needed for AUTO BPM and recording on YouTube decks). Chrome/Edge: choose This tab + Share tab audio.'],
+  ['#calBtn', 'Measure your computer’s capture delay: play a demo song, then press this.'],
+  ['#capOff', 'Capture delay in ms. Set automatically by CALIBRATE.'],
+  ['#vjMode', 'Show both videos on one screen: crossfade, beat cuts, split screen or picture in picture.'],
+  ['#vjRate', 'Beat cuts: how often to switch between the decks’ videos.'],
+  ['#vjFull', 'Show the video mix full-screen, for a projector or second screen. Esc to exit.'],
+  ['#stageClose', 'Close the video mix (videos go back into the decks).'],
+  ['#midiConnect', 'Connect a USB/Bluetooth MIDI or DJ controller (Chrome/Edge).'],
+  ['#midiLearn', 'Learn: click a control here, then move a knob or press a pad on your controller to link them.'],
+  ['#midiClear', 'Remove all MIDI links.'],
+  // library
+  ['#plUrl', 'Paste a YouTube link, then press ADD (or Enter) to put it on the playlist.'],
+  ['#plAdd', 'Add the YouTube link to the playlist.'],
+  ['#playlistBox .filebtn', 'Add song files from your computer to the playlist (you can pick several).'],
+  ['#plDemo', 'Add the two practice songs to the playlist.'],
+  ['#plList [data-a=A]', 'Load this track onto Deck A.'], ['#plList [data-a=B]', 'Load this track onto Deck B.'],
+  ['#plList [data-a=up]', 'Move up the list.'], ['#plList [data-a=dn]', 'Move down the list.'], ['#plList [data-a=rm]', 'Remove from the playlist.'],
+  ['#adjBtn', 'Auto-DJ: play the list in order, syncing and blending each song into the next.'],
+  ['#adjLen', 'How long each Auto-DJ blend lasts.'],
+  ['#recBtn', 'Record everything you hear. Press again to stop; then listen back, download or save as WAV.'],
+  ['#recList .filebtn', 'Download this recording.'], ['#recList .towav', 'Convert this recording to a WAV file and download it.'], ['#recList .rmrec', 'Remove this recording.'],
+  ['#sessName', 'Type a name for this session.'],
+  ['#sessSave', 'Save both decks (song, position, speed, BPM, cues, EQ, effects), the mixer and the playlist.'],
+  ['#sessList .ld', 'Load this session.'], ['#sessList .rm', 'Delete this saved session.'],
+  ['#sessExport', 'Download the current session as a file you can keep or share.'],
+  ['#sessBox .filebtn', 'Open a saved session file.'],
+  ['#preSel', 'Choose an effects preset: a ready-made combination of filter, echo, EQ, gate and visuals.'],
+  ['#preA', 'Apply the chosen preset to Deck A.'], ['#preB', 'Apply the chosen preset to Deck B.'],
+  ['#preName', 'Type a name for your own preset.'],
+  ['#preSaveA', 'Save Deck A’s current effects as a preset.'], ['#preSaveB', 'Save Deck B’s current effects as a preset.'],
+  ['#preDel', 'Delete the chosen preset (your own presets only).']
+];
+const TIP_TARGET = 'button, input, select, label.filebtn, a.filebtn, canvas.zoom, canvas.overview, .meter, .lights, .stat, #plList .lbl';
+function tipText(el) {
+  if (el.dataset.tip) return el.dataset.tip;
+  for (const [sel, txt] of TIPS) if (el.matches(sel)) {
+    const dk = el.closest('.deck'), D = dk ? dk.dataset.id : '';
+    return txt.replace(/\{D\} = 1, B = 0/, D === 'A' ? '1' : '0').replace(/\{D\}/g, D).replace(/\{O\}/g, D === 'A' ? 'B' : 'A');
+  }
+  return el.dataset.tipTitle || '';
+}
+const tipTarget = node => { const el = node && node.closest ? node.closest(TIP_TARGET) : null; return el && !el.closest('#tour') && tipText(el) ? el : null; };
+// native title tooltips would double up with ours, so keep their text as a fallback and remove them
+const stripTitles = root => $$('[title]', root).forEach(el => { if (!el.closest('#tour')) { el.dataset.tipTitle = el.title; el.removeAttribute('title'); } });
+stripTitles(document);
+const tipEl = document.createElement('div'); tipEl.id = 'tip'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl);
+let tipFor = null, tipTimer = null, tipHideTimer = null;
+function showTip(el) {
+  if (el.title) { el.dataset.tipTitle = el.title; el.removeAttribute('title'); }
+  const txt = tipText(el); if (!txt) return;
+  tipEl.textContent = txt; tipEl.classList.add('show');
+  const r = el.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  let top = r.top - h - 8; if (top < 6) top = r.bottom + 8;
+  tipEl.style.left = clamp(r.left + r.width / 2 - w / 2, 6, innerWidth - w - 6) + 'px'; tipEl.style.top = top + 'px';
+}
+function hideTip() { clearTimeout(tipTimer); clearTimeout(tipHideTimer); tipFor = null; tipEl.classList.remove('show'); }
+document.addEventListener('pointerover', e => {
+  if (e.pointerType === 'touch') return;
+  const t = tipTarget(e.target); if (t === tipFor) return;
+  hideTip(); if (!t) return;
+  tipFor = t; tipTimer = setTimeout(() => showTip(t), 350);
+});
+document.addEventListener('pointerout', e => { if (tipFor && !(e.relatedTarget && tipFor.contains(e.relatedTarget))) hideTip(); });
+document.addEventListener('pointerdown', e => {
+  hideTip();
+  if (e.pointerType === 'touch') { const t = tipTarget(e.target); if (t) { tipFor = t; tipTimer = setTimeout(() => showTip(t), 550); } } // long-press
+}, true);
+['pointerup', 'pointercancel'].forEach(ev => document.addEventListener(ev, e => { if (e.pointerType === 'touch' && tipFor) { clearTimeout(tipTimer); tipHideTimer = setTimeout(hideTip, 1800); } }, true));
+document.addEventListener('focusin', e => { const t = tipTarget(e.target); if (t && t.matches(':focus-visible')) { hideTip(); tipFor = t; tipTimer = setTimeout(() => showTip(t), 400); } });
+document.addEventListener('focusout', hideTip);
+addEventListener('scroll', hideTip, { passive: true }); addEventListener('wheel', hideTip, { passive: true });
+
+/* =====================================================================
    RENDER + FRAME LOOP
    ===================================================================== */
 function render(d) {
@@ -2102,6 +2272,24 @@ function playBoth({ synced }) {
   if (synced) setTimeout(() => sync(B), 300);
 }
 const prepPlaying = synced => async () => { if (await ensureDemos()) playBoth({ synced }); };
+// Live demos use the tracks already loaded (if both have a BPM and beat grid), otherwise the practice songs.
+async function ensureTracks() {
+  const ok = d => isReady(d) && d.bpm && d.anchor != null;
+  if (ok(decks.A) && ok(decks.B)) return true;
+  return ensureDemos();
+}
+// Both decks playing and B synced to A. keepFader leaves the crossfader where it is.
+async function liveBoth(keepFader) {
+  if (!await ensureTracks()) return false;
+  const A = decks.A, B = decks.B; let restarted = false;
+  for (const d of [A, B]) {
+    if (!isPlaying(d)) { const dur = d.src.duration(); if (!dur || dur - est(d) < 25) seek(d, firstBeat(d)); d.src.play(); restarted = true; }
+  }
+  if (!keepFader) $('#xfader').value = .5;
+  const gap = Math.abs(playingBpm(B) - playingBpm(A));
+  if (restarted || gap > .05) { await wait(300); sync(B); await wait(700); }
+  return true;
+}
 
 /* ---------- the chapters ---------- */
 // Each step: sel (what to highlight), title, what (one or two plain sentences), tryIt (one action), act/label (optional "Do it for me")
@@ -2179,6 +2367,97 @@ const CHAPTERS = [
       what: 'Click an empty number to bookmark the current spot. Click it again to jump back there, still in time. Shift+click deletes a cue.',
       tryIt: 'Press <b>1</b>, wait a few seconds, then press <b>1</b> again.',
       act: () => { const d = decks.B; if (d.cues[0] == null) cuePress(d, 0); setTimeout(() => cuePress(d, 0), beatMs(4)); }, label: 'Set and jump' }
+  ]},
+  { title: 'Mixer in action (live demo)', blurb: 'Hear every mixer control working on real tracks. Try Auto-play.', live: true,
+    prep: async () => { if (lock) $('#lockBtn').click(); $('#maskType').value = 'off'; applyMask(); $('#quant').classList.add('on'); await liveBoth(); }, steps: [
+    { sel: '.meterwrap', title: 'The beat meter, live', dur: 10,
+      what: 'With both songs playing in sync, the needle sits in the green. The demo pushes Deck B 120 ms late, waits a bar, then presses SYNC.',
+      listen: 'A “flam” (a double kick) while the needle swings out, then one solid thump when SYNC brings it back to green.',
+      tryIt: 'Watch the needle and the number under it.',
+      act: async () => { await liveBoth(true); nudge(decks.B, 120); setTimeout(() => sync(decks.B), beatMs(5)); }, label: 'Push B out, then SYNC' },
+    { sel: '#lockBtn', title: 'Beat Lock rescues a drift', dur: 10,
+      what: 'BEAT LOCK watches the meter. When the beats drift outside the tolerance for over half a second, it pulls the following deck back by itself.',
+      listen: 'About a second of flam after the push, then the kicks snap back together without you touching anything.',
+      tryIt: 'Turn on BEAT LOCK, then press +100ms on Deck B.',
+      act: async () => { await liveBoth(true); if (!lock) $('#lockBtn').click(); setTimeout(() => nudge(decks.B, 100), 300); }, label: 'Lock on, then push B' },
+    { sel: '#tol', title: 'Tolerance and YouTube latency',
+      what: '<b>Lock tolerance</b> is how far the beats may drift before Beat Lock steps in (35 ms is barely audible). <b>YouTube seek latency</b> is how long YouTube takes to jump; raise it if SYNC lands late on YouTube decks, lower it if early.',
+      tryIt: 'Nothing to press: these are set-and-forget.' },
+    { sel: '.xfwrap', title: 'The crossfader', dur: 10,
+      what: 'The demo slides from Deck A, all the way to Deck B, and back to the middle.',
+      listen: 'Song A fades as song B rises. In the middle both play at full volume, with no dip.',
+      tryIt: 'Drag it yourself afterwards, or use the ← → keys.',
+      act: async () => { await liveBoth(true); animate(beatMs(8), k => { $('#xfader').value = k < .5 ? 0 + k * 2 : 1 - (k - .5); }); }, label: 'Slide A → B → middle' },
+    { sel: '[data-tr=blend][data-len="8"]', title: 'BLEND 8', dur: 14,
+      what: 'One press: on the next bar line, the app fades to the quieter deck over 8 beats. On audio files it also fades the old song’s bass out first.',
+      listen: 'Nothing changes until the bar starts, then B rises while A’s bass drops away and A fades out.',
+      tryIt: 'Move the crossfader near A, then press BLEND 8.',
+      act: async () => { await liveBoth(true); $('#xfader').value = .05; startTrans('blend', 8, $('[data-tr=blend][data-len="8"]')); }, label: 'Blend A → B' },
+    { sel: '[data-tr=blend][data-len="16"]', title: 'BLEND 16', dur: 22,
+      what: 'The same, but twice as slow: a long, smooth mix over 4 bars. It always heads toward whichever deck is quieter, so this one goes back from B to A.',
+      listen: 'A slower, more gradual handover than BLEND 8.',
+      tryIt: 'Press BLEND 16.',
+      act: async () => { await liveBoth(true); $('#xfader').value = .95; startTrans('blend', 16, $('[data-tr=blend][data-len="16"]')); }, label: 'Blend B → A' },
+    { sel: '[data-tr=cut]', title: 'CUT @ BAR', dur: 8,
+      what: 'An instant switch, timed exactly to the next bar line. Great for punchy changes.',
+      listen: 'Song A playing, then on the “1” of the next bar, song B suddenly takes over.',
+      tryIt: 'Press CUT @ BAR.',
+      act: async () => { await liveBoth(true); $('#xfader').value = .05; startTrans('cut', 0, $('[data-tr=cut]')); }, label: 'Cut to B' },
+    { sel: '[data-tr=brake]', title: 'BRAKE OUT', dur: 8,
+      what: 'On the next bar, the playing deck slows to a stop like a turntable losing power, while the other deck takes over.',
+      listen: 'Song B winding down (dropping in pitch on audio files) as song A comes in.',
+      tryIt: 'Press BRAKE OUT.',
+      act: async () => { await liveBoth(true); $('#xfader').value = .95; startTrans('brake', 2, $('[data-tr=brake]')); }, label: 'Brake B out' },
+    { sel: '[data-tr=echo]', title: 'ECHO OUT → CUT', dur: 10,
+      what: 'On the next bar, the playing deck dissolves into its own echo and stops, while the other deck fades in. (On YouTube decks it brakes instead.)',
+      listen: 'Song A turning into repeating, fading echoes while song B rises underneath.',
+      tryIt: 'Press ECHO OUT → CUT.',
+      act: async () => { await liveBoth(true); $('#xfader').value = .05; startTrans('echo', 4, $('[data-tr=echo]')); }, label: 'Echo A out' },
+    { sel: '[data-pad=riser]', title: 'Build-up and drop: RISER + IMPACT', dur: 14,
+      what: 'The classic build: the RISER whooshes up and always ends on a bar line; IMPACT waits for the next downbeat. Fire the impact near the end of the riser and they land together.',
+      listen: 'A rising whoosh over 2–3 bars, then a deep boom exactly where the riser ends.',
+      tryIt: 'Press RISER (S), then IMPACT (D) just before the whoosh peaks.',
+      act: async () => {
+        await liveBoth(); pad('riser');
+        const c = clock(), endN = Math.ceil((c.n + 8) / 4 - 1e-6) * 4;
+        setTimeout(() => pad('impact'), (endN - c.n - 1) * c.beatSec * 1000);
+      }, label: 'Build and drop' },
+    { sel: '[data-pad=horn]', title: 'AIR HORN with echo', dur: 8,
+      what: 'The pads have their own ECHO switch. The demo turns it on and fires the air horn.',
+      listen: 'Four horn blasts locked to the beat, trailed by echoes. Then the echo switches off again.',
+      tryIt: 'Turn on the pads’ ECHO, then press AIR HORN (A).',
+      act: async () => { await liveBoth(true); const e = $('#fxEcho'); if (!e.classList.contains('on')) e.click(); pad('horn'); setTimeout(() => { if (e.classList.contains('on')) e.click(); }, beatMs(7)); }, label: 'Horn + echo' },
+    { sel: '[data-pad=siren]', title: 'SIREN, then LASER', dur: 12,
+      what: 'The siren wobbles twice per beat for 2 bars. The laser fires four zaps on sixteenth notes.',
+      listen: 'A dub siren riding the beat, then a quick “pew-pew-pew-pew” right on a beat.',
+      tryIt: 'Press SIREN (F), then LASER (G).',
+      act: async () => { await liveBoth(true); pad('siren'); setTimeout(() => pad('laser'), beatMs(8)); }, label: 'Siren, then laser' },
+    { sel: '[data-pad=snare]', title: 'SNARE ROLL', dur: 14,
+      what: 'An 8-beat build that starts on the next bar: quarter notes, then eighths, sixteenths and thirty-seconds, getting louder, then an impact on the bar.',
+      listen: 'The snare speeding up and getting louder until it explodes into the boom.',
+      tryIt: 'Press SNARE ROLL (H).',
+      act: async () => { await liveBoth(true); pad('snare'); }, label: 'Snare roll' },
+    { sel: '#quant', title: 'QUANTIZE on vs off', dur: 10,
+      what: 'With QUANTIZE on, pads wait for the beat (or bar) so they’re always in time. Off, they play the instant you press. The demo fires the horn once each way.',
+      listen: 'The first horn starts immediately, probably between beats. The second waits and lands squarely on the beat.',
+      tryIt: 'Switch QUANTIZE off and try a pad, then switch it back on.',
+      act: async () => {
+        await liveBoth(true); const q = $('#quant');
+        q.classList.remove('on'); setTimeout(() => pad('horn'), beatMs(.37));
+        setTimeout(() => { q.classList.add('on'); pad('horn'); }, beatMs(4.4));
+      }, label: 'Off, then on' },
+    { sel: '#masking', title: 'Sound masking', dur: 16,
+      what: 'A noise layer over the whole mix. The demo plays vinyl crackle, switches to pink noise with PUMP (ducking on every beat), sweeps the TONE, then turns it off.',
+      listen: 'Crackle like an old record, then a “breathing” noise that dips on every kick and gets darker and brighter.',
+      tryIt: 'Pick a noise type, then try PUMP, LEVEL and TONE.',
+      act: async () => {
+        await liveBoth(true); audio();
+        const set = (type, lvl, pump) => { $('#maskType').value = type; $('#maskLvl').value = lvl; $('#maskPump').classList.toggle('on', pump); applyMask(); };
+        set('vinyl', .55, false);
+        setTimeout(() => set('pink', .45, true), beatMs(4));
+        setTimeout(() => animate(beatMs(6), k => { $('#maskTone').value = .7 - .6 * Math.sin(k * Math.PI); applyMask(); }), beatMs(6));
+        setTimeout(() => { set('off', .35, false); $('#maskTone').value = .7; applyMask(); }, beatMs(13));
+      }, label: 'Masking tour' }
   ]},
   { title: 'Effects', blurb: 'Rolls, gates, echoes, tape, reverse, pads and more.', prep: prepPlaying(true), steps: [
     { sel: '.deck[data-id=A] .fxroll', title: 'Loop roll',
@@ -2265,8 +2544,22 @@ let tourDone = {}; try { tourDone = JSON.parse(localStorage.getItem('bm:tourDone
 const saveDone = () => { try { localStorage.setItem('bm:tourDone', JSON.stringify(tourDone)); } catch (e) {} };
 const totalSteps = CHAPTERS.reduce((n, c) => n + c.steps.length, 0);
 
-function tourOpen() { tourMode = 'menu'; tourC = tourI = -1; $('#tour').hidden = false; renderTour(); }
-function tourClose() { tourMode = null; $('#tour').hidden = true; }
+// Auto-play: run each step's demo, give it time to be heard (or read), then move on.
+let tourAuto = false, autoTimer = null;
+function autoStop() { tourAuto = false; clearTimeout(autoTimer); }
+function autoStep() {
+  if (!tourAuto || tourMode !== 'step') return;
+  const ch = CHAPTERS[tourC], st = ch.steps[tourI];
+  if (st.act) Promise.resolve(st.act()).catch(() => {});
+  const ms = st.act ? beatMs(st.dur || 8) + 1500 : 6500;
+  autoTimer = setTimeout(() => {
+    if (!tourAuto || tourMode !== 'step') return;
+    if (tourI < ch.steps.length - 1) { tourI++; renderTour(); autoStep(); }
+    else { autoStop(); stepGo(tourI + 1); }
+  }, ms);
+}
+function tourOpen() { autoStop(); tourMode = 'menu'; tourC = tourI = -1; $('#tour').hidden = false; renderTour(); }
+function tourClose() { autoStop(); tourMode = null; $('#tour').hidden = true; }
 async function chapterStart(c) {
   if (!CHAPTERS[c].simple && document.body.classList.contains('simple')) setMode('full');
   tourC = c; tourI = 0; tourMode = 'step'; renderTour();
@@ -2305,15 +2598,19 @@ function renderTour() {
   }
   const st = ch.steps[tourI];
   head.innerHTML = `CHAPTER ${tourC + 1} · ${ch.title.toUpperCase()}<span class="dots">${ch.steps.map((_, i) => `<i class="${i < tourI ? 'past' : i === tourI ? 'now' : ''}"></i>`).join('')}</span>`;
-  body.innerHTML = `<h3>${st.title}</h3><p>${st.what}</p><p class="try"><b>Try it:</b> ${st.tryIt}</p>` +
-    (st.act ? `<button id="tourDo">${st.label || 'Do it for me'}</button>` : '');
+  body.innerHTML = `<h3>${st.title}</h3><p>${st.what}</p>` + (st.listen ? `<p class="listen"><b>🎧 Listen for:</b> ${st.listen}</p>` : '') +
+    `<p class="try"><b>Try it:</b> ${st.tryIt}</p>` +
+    `<div class="row" style="margin:0">${st.act ? `<button id="tourDo">${st.label || 'Do it for me'}</button>` : ''}` +
+    `<button id="tourAuto" title="">${tourAuto ? '■ Stop auto-play' : '▶ Auto-play chapter'}</button></div>` +
+    (tourAuto ? '<p class="note" style="margin:6px 0 0">Auto-playing: each step runs its demo, then moves on.</p>' : '');
   foot.innerHTML = `<button id="tourMenu" title="All chapters">☰</button><button id="tourPrev"${tourI === 0 ? ' disabled' : ''}>← Back</button>` +
     `<span class="note">Step ${tourI + 1} of ${ch.steps.length}</span>` +
     `<button id="tourNext" class="primary">${tourI === ch.steps.length - 1 ? 'Finish chapter ✓' : 'Next →'}</button>`;
   if (st.act) $('#tourDo').onclick = () => { audio(); st.act(); };
-  $('#tourMenu').onclick = tourOpen;
-  $('#tourPrev').onclick = () => stepGo(tourI - 1);
-  $('#tourNext').onclick = () => stepGo(tourI + 1);
+  $('#tourAuto').onclick = () => { if (tourAuto) { autoStop(); renderTour(); } else { audio(); tourAuto = true; renderTour(); autoStep(); } };
+  $('#tourMenu').onclick = () => { autoStop(); tourOpen(); };
+  $('#tourPrev').onclick = () => { autoStop(); stepGo(tourI - 1); };
+  $('#tourNext').onclick = () => { autoStop(); stepGo(tourI + 1); };
   const t = $(st.sel); if (t) t.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 function tourPlace() {
@@ -2331,7 +2628,7 @@ $('#tourClose').onclick = tourClose;
 // first visit: open the chapter menu once
 try { if (!localStorage.getItem('bm:seenTour')) { localStorage.setItem('bm:seenTour', '1'); setTimeout(tourOpen, 600); } } catch (e) {}
 
-window.BeatMatch = { decks, onMidi, detectBeat, finishDetect }; // handy for debugging from the console
+window.BeatMatch = { decks, onMidi, detectBeat, finishDetect, tipText: el => tipText(el) }; // handy for debugging from the console
 })();
 </script>
 </body>

@@ -3,6 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#0d0f12">
+<meta property="og:title" content="BeatMatch">
+<meta property="og:description" content="Two-deck beat matching for YouTube and audio files. Created by PREM CHANDRAN (Mixed Signal Game Studios).">
+<meta property="og:image" content="https://beatmatch-ashen.vercel.app/assets/og-image.png">
+<meta property="og:url" content="https://beatmatch-ashen.vercel.app/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
 <meta name="author" content="PREM CHANDRAN (Mixed Signal Game Studios)">
 <meta name="description" content="BeatMatch: a two-deck DJ app for YouTube videos and audio files. Created by PREM CHANDRAN (Mixed Signal Game Studios).">
 <title>BeatMatch — Two-Deck Tempo Sync with FX</title>
@@ -14,9 +25,12 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
   header{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  header h1{margin:0;font-size:20px;letter-spacing:.12em;line-height:1.1}
+  header h1{margin:0;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:700;font-size:22px;letter-spacing:.14em;line-height:1.1}
+  header .brandrow{display:flex;align-items:center;gap:10px;min-width:0}
+  header .logo{width:44px;height:44px;flex:none}
   header .brand{display:flex;flex-direction:column;gap:3px}
-  header .bycredit{font-size:11px;letter-spacing:.08em;color:var(--mute);white-space:nowrap}
+  header .bycredit{font-size:11px;letter-spacing:.08em;color:var(--mute)}
+  header .bycredit span{white-space:nowrap}
   header .bycredit b{color:#cfd7e2;font-weight:600}
   header .sub{color:var(--mute);font-size:12px}
   header .hbtns{margin-left:auto;display:flex;gap:8px}
@@ -183,7 +197,7 @@
 </head>
 <body>
 <header>
-  <div class="brand"><h1>BEATMATCH</h1><div class="bycredit">created by <b>PREM CHANDRAN</b> · Mixed Signal Game Studios</div></div>
+  <div class="brandrow"><svg class="logo" viewBox="0 0 160 160" aria-hidden="true"> <path d="M6 96 A74 74 0 0 1 154 96" fill="none" stroke="#2a313b" stroke-width="8" stroke-linecap="round"/> <path d="M6 96 A74 74 0 0 1 52.3 27.4" fill="none" stroke="#ff7a1a" stroke-width="8" stroke-linecap="round"/> <path d="M107.7 27.4 A74 74 0 0 1 154 96" fill="none" stroke="#1a8cff" stroke-width="8" stroke-linecap="round"/> <path d="M69.7 22.7 A74 74 0 0 1 90.3 22.7" fill="none" stroke="#5be38a" stroke-width="8"/> <circle cx="56" cy="96" r="40" fill="#ff7a1a"/> <circle cx="104" cy="96" r="40" fill="#1a8cff"/> <path d="M80 64 A40 40 0 0 1 80 128 A40 40 0 0 1 80 64 Z" fill="#0d0f12"/> <g fill="#0d0f12" fill-opacity="0.8"> <rect x="18" y="90" width="5" height="12" rx="2.5"/><rect x="28" y="84" width="5" height="24" rx="2.5"/><rect x="38" y="76" width="5" height="40" rx="2.5"/><rect x="48" y="84" width="5" height="24" rx="2.5"/><rect x="58" y="90" width="5" height="12" rx="2.5"/> <rect x="97" y="90" width="5" height="12" rx="2.5"/><rect x="107" y="84" width="5" height="24" rx="2.5"/><rect x="117" y="76" width="5" height="40" rx="2.5"/><rect x="127" y="84" width="5" height="24" rx="2.5"/><rect x="137" y="90" width="5" height="12" rx="2.5"/> </g> <line x1="80" y1="96" x2="80" y2="30" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/> <circle cx="80" cy="96" r="8" fill="#ffffff"/> <circle cx="80" cy="96" r="3.5" fill="#0d0f12"/> </svg><div class="brand"><h1>BEATMATCH</h1><div class="bycredit"><span>created by <b>PREM CHANDRAN</b></span> <span>· Mixed Signal Game Studios</span></div></div></div>
   <span class="sub header-sub">Two decks · YouTube or audio files · tap tempo · sync · beat lock · FX</span>
   <div class="hbtns">
     <button id="modeBtn" title="Switch between the essentials and every control">Show all controls</button>

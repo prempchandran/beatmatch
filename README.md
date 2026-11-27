@@ -15,6 +15,15 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000 in Chrome or Edge. Audio files and the demo tracks also work if you open `index.html` directly.
 
+## Logo
+
+The logo is **Carved Platters**: two records (orange #ff7a1a and blue #1a8cff) with waveforms carved into them, under a beat meter whose needle rises from their overlap into the green "in time" zone. Files in `assets/`:
+
+- `logo-mark.svg`: the full logo
+- `favicon.svg` and `icon-32.png`: the browser-tab icon
+- `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`: home-screen and app icons
+- `og-image.png`: the 1200×630 preview shown when the link is shared
+
 ## Tooltips
 
 Hover over any button, slider, menu or display for a short explanation, including its keyboard shortcut where there is one. On a touch screen, press and hold. Hot-cue tooltips show the cue's time.

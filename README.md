@@ -60,7 +60,13 @@ Each step has a **Try it** action and a **Do it for me** button. Live-demo steps
 ## Playlist, Auto-DJ, recording, sessions
 
 - **Playlist:** add YouTube links, song files or the demos. **A** and **B** load a track onto a deck, and the arrows reorder.
-- **Auto-DJ:** plays the list in order. Near the end of each song it loads the next one, syncs it and blends over 8, 16 or 32 beats, then stops the old deck. Files are analysed automatically. A YouTube video needs a BPM saved from an earlier AUTO or TAP, otherwise Auto-DJ fades it in without beat sync.
+- **Auto-DJ:** plays the list in order. Near the end of each song it loads the next one, syncs it and blends over 8, 16 or 32 beats, then stops the old deck. Files are analysed automatically. The status line says how the next mix will happen.
+- **Auto-DJ with YouTube:** a page can't read YouTube's audio directly, so BPMs come from tab audio (CONNECT TAB AUDIO, choose *This tab*, turn on *Share tab audio*):
+  - **ANALYSE BPMs** goes through every YouTube track in the list without a BPM: it plays about 16 s from the middle of each (playback paused otherwise), saves the BPM and beat grid, and shows them in the list. Press it again to stop.
+  - **Learn while playing:** with tab audio connected, Auto-DJ quietly listens to a YouTube track while it's the only one on air and saves its BPM, without changing any volumes.
+  - BPMs are remembered per video, so each video only needs this once (an AUTO or TAP on a deck counts too).
+  - Some videos only allow coarse speeds (0.75×, 1×, 1.25×…). Auto-DJ then switches **Beat Lock** on for the blend, which keeps re-aligning the beat (starting just behind it so the drift passes through it), and switches it off afterwards.
+  - With no BPM for one of the two songs, Auto-DJ doesn't fade two unsynced beats together: it cuts cleanly on the bar, or echoes out an audio file.
 - **Record:** captures everything you hear. Download the recording (WebM/Opus), or press **Save as WAV**. With a YouTube deck loaded, recording uses tab audio (Chrome/Edge asks once).
 - **Sessions:** save both decks (song, position, speed, BPM, cues, EQ, effects), the mixer and the playlist by name, or **EXPORT** them to a file and **IMPORT** it later. Audio files have to be reopened with FILE… because browsers don't let a page reopen files by itself.
 - **FX presets:** 8 built in (Dub echo, Underwater, Old radio, Build-up, Breakdown, Strobe party, Noir lo-fi, Clean). Save your own from either deck.

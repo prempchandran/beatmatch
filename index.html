@@ -337,6 +337,7 @@
     <ol id="plList"></ol>
     <div class="row">
       <button id="adjBtn" class="big">AUTO-DJ</button>
+      <button id="plAnalyse" title="">ANALYSE BPMs</button>
       <span class="note">Mix over</span>
       <select id="adjLen"><option value="8">8 beats</option><option value="16" selected>16 beats</option><option value="32">32 beats</option></select>
     </div>
@@ -675,11 +676,12 @@ function detectBeat(x, sr, opt = {}) {
   for (let b = bestB - .4; b <= bestB + .4; b += .01) { const [s] = comb(b); if (s > fineS) { fineS = s; fineB = b; } }
   return { bpm: fineB, conf: fineS / (total / n), phaseOf: bpm => comb(bpm, .25)[1] / fps + hop / sr / 2, fps };
 }
-function finishDetect(r, rate = 1) {
+// tol: how close to a whole BPM counts as that whole BPM (tab-audio capture is less exact than a decoded file)
+function finishDetect(r, rate = 1, tol = .12) {
   if (!r) return null;
   let track = r.bpm / rate;
   const whole = Math.round(track);
-  track = Math.abs(track - whole) < .12 ? whole : Math.round(track * 100) / 100;
+  track = Math.abs(track - whole) < tol ? whole : Math.round(track * 100) / 100;
   return { bpm: track, phase: r.phaseOf(track * rate), conf: r.conf };
 }
 
@@ -869,7 +871,7 @@ function attach(d, factory, meta) {
   d.el.classList.toggle('file', d.src.kind === 'file');
   $('.src-tag', d.el).textContent = d.src.kind === 'yt' ? 'YouTube' : 'Audio file';
   if (meta) { d.bpm = meta.bpm; d.anchor = meta.anchor; }
-  d.cues = []; d.cueDel = false;
+  d.cues = []; d.cueDel = false; d.learning = false; d.learnTries = 0;
   let note = meta && meta.note || '';
   const mem = loadMem(d);
   if (mem) {
@@ -1065,7 +1067,8 @@ function sync(d) {
   setTimeout(() => align(d), d.src && d.src.kind === 'yt' ? 450 : 60);
   if (best !== 1) flash(`Matched as ${best === 2 ? 'double' : 'half'}-time (${(d.bpm * best).toFixed(1)} BPM)`);
 }
-function align(d) {
+// lead: start this many seconds early (negative = late), so a deck that can't match the tempo exactly drifts through the beat
+function align(d, lead = 0) {
   const m = other(d);
   if (!isReady(d) || !isReady(m) || !d.bpm || !m.bpm || d.anchor == null || m.anchor == null) { flash('Need BPM and a beat mark on both decks'); return; }
   const pM = 60 / (m.bpm * m.mult), pF = 60 / (d.bpm * d.mult);
@@ -1073,7 +1076,7 @@ function align(d) {
   const lat = latFor(d) * d.rate;
   const nF = (est(d) + lat - d.anchor) / pF;
   const targetN = Math.round(nF - phaseM) + phaseM;
-  let target = d.anchor + targetN * pF + lat;
+  let target = d.anchor + targetN * pF + lat + lead * d.rate;
   if (target < 0) target += pF * Math.ceil(-target / pF);
   seek(d, target); lastLockFix = nowMs();
 }
@@ -1851,16 +1854,17 @@ function disconnectCapture() {
 $('#capBtn').onclick = () => cap ? disconnectCapture() : ensureCapture();
 
 // Record `secs` of tab audio with deck d soloed. Returns samples plus the deck time at the first sample.
-function listen(d, secs, btn) {
+// solo = false listens without changing any volumes (used to learn a BPM while a track plays on its own)
+function listen(d, secs, btn, solo = true) {
   return new Promise(resolve => {
     const chunks = []; let v0 = null, got = 0; const need = secs * ac.sampleRate;
-    soloDeck = d; const fxPrev = fxBus.gain.value; fxBus.gain.value = 0;
-    const t0 = nowMs(), tick = setInterval(() => { btn.textContent = 'LISTEN ' + Math.max(0, Math.ceil(secs - (nowMs() - t0) / 1000)); }, 200);
+    const fxPrev = fxBus.gain.value; if (solo) { soloDeck = d; fxBus.gain.value = 0; }
+    const t0 = nowMs(), tick = setInterval(() => { if (btn) btn.textContent = 'LISTEN ' + Math.max(0, Math.ceil(secs - (nowMs() - t0) / 1000)); }, 200);
     cap.rec = m => {
       if (v0 === null) v0 = est(d) - m.length / ac.sampleRate * d.rate;
       chunks.push(m); got += m.length;
       if (got >= need) {
-        cap.rec = null; clearInterval(tick); soloDeck = null; fxBus.gain.value = fxPrev;
+        cap.rec = null; clearInterval(tick); if (solo) { soloDeck = null; fxBus.gain.value = fxPrev; }
         const x = new Float32Array(got); let o = 0; chunks.forEach(c => { x.set(c, o); o += c.length; });
         resolve({ x, v0 });
       }
@@ -1892,7 +1896,7 @@ async function autoBpm(d) {
       if (!isPlaying(d)) { d.src.play(); await new Promise(r => setTimeout(r, 900)); }
       const { x, v0 } = await listen(d, 10, btn);
       const off = (+$('#capOff').value || 0) / 1000;
-      applyDetect(d, finishDetect(detectBeat(x, ac.sampleRate), d.rate), v0 - off * d.rate, d.rate);
+      applyDetect(d, finishDetect(detectBeat(x, ac.sampleRate), d.rate, .4), v0 - off * d.rate, d.rate);
     }
   } finally { btn.classList.remove('armed'); btn.textContent = 'AUTO'; }
 }
@@ -1904,7 +1908,7 @@ $('#calBtn').onclick = async () => {
   const btn = $('#calBtn'); btn.classList.add('armed');
   const { x, v0 } = await listen(d, 8, btn);
   btn.classList.remove('armed'); btn.textContent = 'CALIBRATE';
-  const r = finishDetect(detectBeat(x, ac.sampleRate), d.rate);
+  const r = finishDetect(detectBeat(x, ac.sampleRate), d.rate, .4);
   if (!r) { flash('Calibration failed. Try again during a section with a clear kick'); return; }
   const p = 60 / (d.bpm * d.mult), heard = v0 + r.phase * d.rate;
   const offMs = Math.round(wrapHalf((heard - d.anchor) / p) * p / d.rate * 1000);
@@ -2093,7 +2097,9 @@ async function adjTick() {
   adj.busy = true;
   try {
     // finished a mix: stop the old deck and tick its track off
-    if (adj.mixing && !trans && !adj.pending) { const out = adj.mixing; if (isPlaying(out)) out.src.pause(); if (out.qItem) out.qItem.state = 'played'; adj.mixing = null; renderQueue(); }
+    if (adj.mixing && !trans && !adj.pending) { const out = adj.mixing; if (isPlaying(out)) out.src.pause(); if (out.qItem) out.qItem.state = 'played'; adj.mixing = null; if (adj.autoLock) { if (lock) $('#lockBtn').click(); adj.autoLock = false; } renderQueue(); }
+    // learn the BPM of a YouTube track while it plays on its own
+    if (!adj.mixing && !trans) maybeLearn(live, other);
     // nothing playing: start the first track on the live side
     if (!isPlaying(decks.A) && !isPlaying(decks.B) && !trans) {
       const it = live.qItem && live.qItem.state === 'queued' ? live.qItem : nextItem();
@@ -2112,13 +2118,17 @@ async function adjTick() {
     // time to mix?
     if (!trans && !adj.mixing && !adj.pending && isPlaying(live) && other.qItem && other.qItem.state === 'queued' && isReady(other) && !isPlaying(other)) {
       const dur = live.src.duration(), len = +$('#adjLen').value, g = grid(live) || clock();
-      const remain = (dur - est(live)) / (live.rate || 1), need = (len + 8) * g.beatSec;
+      const synced = canSync(live, other), plan = mixPlan(live, other);
+      const remain = (dur - est(live)) / (live.rate || 1), need = (synced ? len + 8 : 8) * g.beatSec;
       if (dur && remain <= need) {
         other.src.play();
-        const synced = !!(live.bpm && other.bpm && live.anchor != null && other.anchor != null);
-        if (synced) setTimeout(() => sync(other), 150); else flash('No BPM for one of these tracks, so Auto-DJ will fade without beat sync');
-        adj.mixing = live; adj.pending = true;   // the crossfade starts after the sync settles
-        setTimeout(() => { if (!trans) startTrans('blend', len, $('[data-tr=blend][data-len="16"]')); adj.pending = false; }, synced ? 800 : 50);
+        if (synced) {
+          setTimeout(() => sync(other), 150);
+          // some YouTube videos only allow coarse speeds: hold the beats together with Beat Lock during the blend
+          setTimeout(() => { if (other.src && other.src.kind === 'yt' && Math.abs(other.rate - other.requestedRate) > .004 && !lock) { $('#lockBtn').click(); adj.autoLock = true; } }, 900);
+        } else flash(`No BPM for ${!live.bpm ? 'the playing track' : 'the next track'}, so Auto-DJ will ${plan.say}`);
+        adj.mixing = live; adj.pending = true;   // the transition starts after the sync settles
+        setTimeout(() => { if (!trans) startTrans(plan.kind, plan.kind === 'blend' ? len : plan.len, $(plan.btn)); adj.pending = false; }, synced ? 1000 : 50);
       }
     }
   } finally {
@@ -2127,10 +2137,74 @@ async function adjTick() {
       const live2 = liveDeck(), o2 = live2 === decks.A ? decks.B : decks.A;
       const name = d => d.qItem ? d.qItem.label : d.src ? (d.src.title() || 'track') : '—';
       const dur = live2.src ? live2.src.duration() : 0, rem = dur ? (dur - est(live2)) / (live2.rate || 1) : 0;
-      $('#adjStatus').innerHTML = `<b>Now:</b> ${escapeHtml(name(live2))} on ${live2.id}${dur ? ` · ${fmtTime(rem).replace(/\.\d+$/, '')} left` : ''}<br><b>Next:</b> ${o2.qItem && o2.qItem.state === 'queued' ? escapeHtml(o2.qItem.label) + ' (ready on ' + o2.id + ')' : nextItem() ? escapeHtml(nextItem().label) : 'nothing queued'}${adj.mixing || trans ? '<br>Mixing…' : ''}`;
+      const ready = o2.qItem && o2.qItem.state === 'queued' && isReady(o2);
+      const how = ready ? (canSync(live2, o2) ? 'beat-synced blend' : mixPlan(live2, o2).short) : '';
+      const tip = live2.learning ? '<br>Learning this track’s BPM…' : (!cap && queue.some(it => it.kind === 'yt' && it.state !== 'played' && !qBpm(it)) ? '<br><span class="note">Tip: press ANALYSE BPMs so YouTube tracks can be beat-synced.</span>' : '');
+      $('#adjStatus').innerHTML = `<b>Now:</b> ${escapeHtml(name(live2))} on ${live2.id}${dur ? ` · ${fmtTime(rem).replace(/\.\d+$/, '')} left` : ''}<br><b>Next:</b> ${ready ? escapeHtml(o2.qItem.label) + ` (ready on ${o2.id}, ${how})` : nextItem() ? escapeHtml(nextItem().label) : 'nothing queued'}${adj.mixing || trans ? '<br>Mixing…' : ''}${tip}`;
     }
   }
 }
+const canSync = (a, b) => !!(a.bpm && b.bpm && a.anchor != null && b.anchor != null);
+// how to mix when the beats can't be synced: echo the old track out (audio files) or cut cleanly on its bar line
+function mixPlan(live, other) {
+  if (canSync(live, other)) return { kind: 'blend', btn: '[data-tr=blend][data-len="16"]', say: 'blend', short: 'beat-synced blend' };
+  if (live.src && live.src.kind === 'file') return { kind: 'echo', len: 4, btn: '[data-tr=echo]', say: 'echo the old track out instead of a long fade', short: 'echo-out, no BPM' };
+  return { kind: 'cut', len: 0, btn: '[data-tr=cut]', say: 'cut cleanly on the bar instead of a long fade', short: 'clean cut on the bar, no BPM' };
+}
+// Learn while playing: a YouTube track with no BPM, playing on its own, with tab audio connected
+const aloneOnAir = d => {
+  const o = other(d), x = +$('#xfader').value, oVol = o.id === 'A' ? x > .97 : x < .03;
+  return isPlaying(d) && (!isPlaying(o) || oVol) && !trans && $('#maskType').value === 'off';
+};
+async function maybeLearn(live, o) {
+  if (!cap || !live.src || live.src.kind !== 'yt' || live.bpm || live.learning || (live.learnTries || 0) >= 2 || !aloneOnAir(live)) return;
+  const dur = live.src.duration(); if (!dur || (dur - est(live)) / (live.rate || 1) < 22) return;
+  live.learning = true; live.learnTries = (live.learnTries || 0) + 1;
+  const src = live.src;
+  try {
+    const { x, v0 } = await listen(live, 16, null, false);
+    if (live.src !== src || !aloneOnAir(live)) return;           // something else was audible: don't trust it
+    const r = finishDetect(detectBeat(x, ac.sampleRate), live.rate, .4), off = (+$('#capOff').value || 0) / 1000;
+    if (r && r.conf >= 1.8) { applyDetect(live, r, v0 - off * live.rate, live.rate); renderQueue(); }
+  } finally { live.learning = false; }
+}
+// Analyse BPMs: listen to each YouTube track in the list that has no BPM yet, ~10 s each, and save the result
+let analysing = null;
+$('#plAnalyse').onclick = async () => {
+  const btn = $('#plAnalyse');
+  if (analysing) { analysing.cancel = true; return; }
+  const todo = queue.filter(it => it.kind === 'yt' && it.state !== 'played' && !qBpm(it));
+  if (!todo.length) { $('#adjStatus').textContent = 'Every YouTube track in the list already has a BPM.'; return; }
+  if (!await ensureCapture()) { $('#adjStatus').textContent = 'Analysing needs tab audio: choose This tab and turn on Share tab audio.'; return; }
+  if (adj.on) $('#adjBtn').click();
+  if (trans) startTrans();                                           // cancel a pending transition
+  Object.values(decks).forEach(d => { if (isPlaying(d)) d.src.pause(); });
+  analysing = { cancel: false }; btn.classList.add('armed'); btn.textContent = 'STOP ANALYSING';
+  const d = decks.B, weak = []; let done = 0;
+  try {
+    for (const it of todo) {
+      if (analysing.cancel) break;
+      $('#adjStatus').textContent = `Analysing ${done + 1} of ${todo.length}: ${it.label}. Playback is paused; press STOP to cancel.`;
+      await loadItem(it, d);
+      if (!await waitFor(() => isReady(d) && d.src.duration() > 0, 20000)) { weak.push(`${it.label} (would not load)`); continue; }
+      const dur = d.src.duration();
+      seek(d, Math.min(dur * .3, Math.max(0, dur - 25)));            // mid-song has the steadiest beat
+      d.src.play(); await wait(1500);
+      if (analysing.cancel) { d.src.pause(); break; }
+      const { x, v0 } = await listen(d, 16, btn);             // 16 s pins the tempo closer than 10 s
+      d.src.pause(); btn.textContent = 'STOP ANALYSING';
+      const r = finishDetect(detectBeat(x, ac.sampleRate), d.rate, .4), off = (+$('#capOff').value || 0) / 1000;
+      applyDetect(d, r, v0 - off * d.rate, d.rate);
+      if (!r || r.conf < 1.8) weak.push(it.label);
+      done++; renderQueue();
+    }
+  } finally {
+    d.qItem = null; btn.classList.remove('armed'); btn.textContent = 'ANALYSE BPMs';
+    const was = analysing; analysing = null; renderQueue();
+    $('#adjStatus').textContent = (was.cancel ? `Stopped after ${done} track${done === 1 ? '' : 's'}.` : `Analysed ${done} YouTube track${done === 1 ? '' : 's'}; their BPMs are saved.`) +
+      (weak.length ? ` Check by ear (unsure): ${weak.join(', ')}.` : ' Auto-DJ can now beat-sync them.');
+  }
+};
 const escapeHtml = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 setInterval(adjTick, 400);
 // YouTube titles become playlist labels once the player knows them
@@ -2309,6 +2383,7 @@ renderPresets();
    {D} = this deck, {O} = the other deck
    ===================================================================== */
 const TIPS = [
+  ['#plAnalyse', 'Listen to each YouTube track in the playlist that has no BPM yet (about 18 s each, playback paused) and save its BPM, so Auto-DJ can beat-sync it. Press again to stop.'],
   // header
   ['#modeBtn', 'Switch between Simple view (just load, play and crossfade) and every control.'],
   ['#demoBtn', 'Load two practice songs: Deck A at 120 BPM and Deck B at 126 BPM, deliberately out of time.'],
@@ -2595,7 +2670,9 @@ function frame() {
       hint.textContent = `Tempo gap ${gap >= 0 ? '+' : ''}${gap.toFixed(2)} BPM · ` + (Math.abs(ms) <= tol ? 'in time' : ms > 0 ? 'B is ahead' : 'B is behind');
     }
     if (lock && isPlaying(A) && isPlaying(B) && !decks[follower].roll && !decks[follower].braking) {
-      if (Math.abs(ms) > tol) { if (!driftSince) driftSince = now; if (now - driftSince > 600 && now - lastLockFix > 2500) { align(decks[follower]); driftSince = 0; } }
+      // a follower stuck on a coarse YouTube speed drifts steadily: re-align sooner, and start it on the far side of the beat
+      const F = decks[follower], gapF = playingBpm(F) - playingBpm(other(F)), steady = Math.abs(gapF) > .3;
+      if (Math.abs(ms) > tol) { if (!driftSince) driftSince = now; if (now - driftSince > (steady ? 0 : 600) && now - lastLockFix > (steady ? 500 : 2500)) { align(F, steady ? -Math.sign(gapF) * tol * .0008 : 0); driftSince = 0; } }
       else driftSince = 0;
     }
   } else { num.textContent = '—'; num.style.color = ''; needle.style.left = '50%'; if (now > flashUntil) hint.textContent = 'Set BPM + beat on both decks'; }
@@ -2976,7 +3053,7 @@ const CHAPTERS = [
       tryIt: 'Press <b>+ DEMOS</b> to add the two practice songs.',
       act: () => $('#plDemo').click(), label: 'Add the demos' },
     { sel: '#adjBtn', title: 'Auto-DJ',
-      what: 'Auto-DJ plays the list in order. Near the end of each song it loads the next one, syncs it and blends it in on the bar. Songs need a BPM (files are analysed automatically); for a YouTube video without one, it fades without beat sync.',
+      what: 'Auto-DJ plays the list in order. Near the end of each song it loads the next one, syncs it and blends it in on the bar. Files are analysed automatically. For YouTube videos, press <b>ANALYSE BPMs</b> first (it needs tab audio), or connect tab audio and Auto-DJ learns each BPM while the song plays. A song with no BPM gets a clean cut on the bar instead of a clashing fade.',
       tryIt: 'Turn on <b>AUTO-DJ</b>, and read the line below it to see what’s playing next.',
       act: () => { if (!adj.on) $('#adjBtn').click(); }, label: 'Turn it on' },
     { sel: '#recBox', title: 'Record your mix',

@@ -171,6 +171,13 @@
   .eq .band input{min-width:0}
   .eq .band .kill{padding:4px 0;font-size:11px}
   .eq .band .kill.on{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff!important}
+  /* scratch + pitch */
+  .platter{width:88px;height:88px;border-radius:50%;cursor:grab;touch-action:none;flex:none}
+  .platter.on{cursor:grabbing}
+  .fxscratch{align-items:center}
+  .scratchbtns{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+  .keyVal{min-width:64px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700}
+  .mod.on,.scr.on,.prise.on{background:var(--ok)!important;color:#06210f!important}
   /* hot cues */
   .cues button.cue{width:34px;padding:6px 0;font-weight:700}
   .cues button.cue.set{color:#111;border-color:transparent}
@@ -441,6 +448,7 @@
     </div>
     <div class="row fxbleep"><span class="fxl">Mask</span>
       <button class="bleep" title="Hold: replace this deck with a censor bleep">BLEEP (hold)</button>
+      <button class="transform">TRANSFORM (hold)</button>
     </div>
     <div class="ytnote note">Filter, echo, tape, reverse and backspin need an audio file. YouTube audio can't be processed by a web page.</div>
     <div class="row fileonly fxfilter"><span class="fxl">Filter</span>
@@ -462,6 +470,27 @@
       <button class="rev" title="Hold: play backwards (backmasking). Track keeps running underneath.">REVERSE (hold)</button>
       <button class="spin" title="Fast reverse spin-down, then stop">BACKSPIN</button>
     </div>
+    <div class="row fileonly fxscratch"><span class="fxl">Scratch</span>
+      <canvas class="platter"></canvas>
+      <div class="scratchbtns">
+        <button class="scr" data-s="baby">BABY</button><button class="scr" data-s="chirp">CHIRP</button>
+        <button class="scr" data-s="flare">FLARE</button><button class="scr" data-s="scribble">SCRIBBLE</button>
+        <button class="scr" data-s="trans">TRANSFORMER</button><button class="slip on">SLIP</button>
+      </div>
+    </div>
+    <div class="row fileonly fxjog"><span class="fxl">Jog</span><input type="range" class="jog" min="-1" max="1" step="0.001" value="0"></div>
+    <div class="row fileonly fxkey"><span class="fxl">Key</span>
+      <button class="keyDn">♭ −1</button><span class="keyVal">0</span><button class="keyUp">♯ +1</button><button class="keyReset">0</button>
+      <button class="octDn">OCT ↓</button><button class="octUp">OCT ↑</button>
+    </div>
+    <div class="row fileonly fxbend"><span class="fxl">Pitch</span>
+      <button class="bendDn">BEND − (hold)</button><button class="bendUp">BEND + (hold)</button><button class="prise">PITCH RISE</button>
+    </div>
+    <div class="row fileonly fxmod"><span class="fxl">Mod FX</span>
+      <button class="mod" data-m="flanger">FLANGER</button><button class="mod" data-m="phaser">PHASER</button>
+      <button class="mod" data-m="crush">CRUSH</button><button class="mod" data-m="wah">WAH</button>
+    </div>
+    <div class="row fileonly fxmodmix"><span class="fxl">Mod mix</span><input type="range" class="modmix" min="0" max="1" step="0.01" value="0.7"></div>
     <div class="row fxvis"><span class="fxl">Visual</span>
       <select class="vfx">
         <option value="none">None</option>
@@ -803,10 +832,11 @@ function makeFile(d, url, label, dlName, key) {
   n.wow.connect(n.wowG).connect(n.tdl.delayTime); n.flut.connect(n.flutG).connect(n.tdl.delayTime); n.wow.start(); n.flut.start();
   n.an = A.createAnalyser(); n.an.fftSize = 512; n.an.smoothingTimeConstant = .7;
   n.eqL = S.filt(A, 'lowshelf', 250); n.eqM = S.filt(A, 'peaking', 1000, .9); n.eqH = S.filt(A, 'highshelf', 2500);
-  n.src.connect(n.in).connect(n.eqL).connect(n.eqM).connect(n.eqH).connect(n.hp).connect(n.lp);
-  n.lp.connect(n.dry).connect(n.ch);
-  n.lp.connect(n.send).connect(n.dl).connect(n.elp); n.elp.connect(n.fb).connect(n.dl); n.elp.connect(n.ch);
-  n.lp.connect(n.tsend).connect(n.tdl).connect(n.tsat).connect(n.tlp).connect(n.thp); n.thp.connect(n.tfb).connect(n.tdl); n.thp.connect(n.ch);
+  n.pre = S.gain(A, 1); n.mod = buildMod(A);
+  n.src.connect(n.in).connect(n.pre).connect(n.eqL).connect(n.eqM).connect(n.eqH).connect(n.hp).connect(n.lp).connect(n.mod.in);
+  n.mod.out.connect(n.dry).connect(n.ch);
+  n.mod.out.connect(n.send).connect(n.dl).connect(n.elp); n.elp.connect(n.fb).connect(n.dl); n.elp.connect(n.ch);
+  n.mod.out.connect(n.tsend).connect(n.tdl).connect(n.tsat).connect(n.tlp).connect(n.thp); n.thp.connect(n.tfb).connect(n.tdl); n.thp.connect(n.ch);
   n.ch.connect(n.an).connect(master);
 
   const s = { kind: 'file', ready: false, precise: true, el, n, label, key, canvas: $('canvas', host), bins: new Uint8Array(n.an.frequencyBinCount), buffer: null };
@@ -826,7 +856,7 @@ function makeFile(d, url, label, dlName, key) {
   s.title = () => label;
   s.setVol = v => n.ch.gain.setTargetAtTime(v / 100, A.currentTime, .004);
   s.media = () => s.canvas;
-  s.destroy = () => { el.pause(); el.removeAttribute('src'); el.load(); try { n.ch.disconnect(); n.src.disconnect(); n.wow.stop(); n.flut.stop(); } catch (e) {} };
+  s.destroy = () => { el.pause(); el.removeAttribute('src'); el.load(); try { if (s.sv) { s.sv.active = false; s.sv.sp.disconnect(); } n.mod.lfos.forEach(o => o.stop()); n.ch.disconnect(); n.src.disconnect(); n.wow.stop(); n.flut.stop(); } catch (e) {} };
   return s;
 }
 
@@ -880,7 +910,7 @@ const latFor = d => d.src && d.src.kind === 'yt' ? (+$('#lat').value || 0) / 100
 function resyncClock(d) { if (!isReady(d)) return; d.base = d.src.rawTime(); d.basePerf = nowMs(); d.lastReported = d.base; }
 function est(d) {
   const s = d.src; if (!s || !s.ready) return 0;
-  if (s.precise) return s.rawTime();
+  if (s.precise) return s.rawTime() - (d.fxLat || 0) * (d.rate || 1);
   const now = nowMs(), rep = s.rawTime(), pl = s.playing();
   const pred = pl ? d.base + (now - d.basePerf) / 1000 * d.rate : d.base;
   if (rep !== d.lastReported) {
@@ -923,7 +953,8 @@ const playingBpm = d => d.bpm ? d.bpm * d.mult * d.rate : null;
     base: 0, basePerf: 0, lastReported: null, seekHold: 0, vol: 100, lastVolSent: -1,
     gateGain: 1, brakeGain: 1, bleepGain: 1, roll: null, gate: null, braking: false, keylock: true,
     filt: 0, echo: false, tape: false, tapeBusy: 0, rev: null, vfx: 'none', cues: [], cueDel: false,
-    eq: { low: 0, mid: 0, high: 0 }, kill: { low: false, mid: false, high: false }, eqAuto: 0
+    eq: { low: 0, mid: 0, high: 0 }, kill: { low: false, mid: false, high: false }, eqAuto: 0,
+    key: 0, oct: 0, rise: 0, riseAnim: null, bend: 0, fxLat: 0, mods: { flanger: false, phaser: false, crush: false, wah: false }, modMix: .7, transformer: false, scratch: null
   };
   const on = (sel, ev, fn) => $$(sel, el).forEach(b => b.addEventListener(ev, fn));
   on('.load', 'click', () => loadYT(d));
@@ -970,6 +1001,18 @@ const playingBpm = d => d.bpm ? d.bpm * d.mult * d.rate : null;
   $$('.eqr', el).forEach(r => { r.addEventListener('input', () => { d.eq[r.dataset.band] = +r.value; applyEq(d); }); r.addEventListener('dblclick', () => setEq(d, r.dataset.band, 0)); });
   on('.kill', 'click', e => { const b = e.currentTarget.dataset.band; setKill(d, b, !d.kill[b]); });
   bindWaveSeek(d);
+  bindScratch(d);
+  on('.scr', 'click', e => scratchPreset(d, e.currentTarget.dataset.s));
+  on('.slip', 'click', e => e.currentTarget.classList.toggle('on'));
+  on('.keyDn', 'click', () => setKey(d, d.key - 1)); on('.keyUp', 'click', () => setKey(d, d.key + 1));
+  on('.keyReset', 'click', () => { if (!needFile(d)) return; d.key = 0; d.oct = 0; applyPitch(d); });
+  on('.octUp', 'click', () => setOct(d, 1)); on('.octDn', 'click', () => setOct(d, -1));
+  holdBtn($('.bendUp', el), () => bend(d, 1), () => bend(d, 0));
+  holdBtn($('.bendDn', el), () => bend(d, -1), () => bend(d, 0));
+  on('.prise', 'click', () => pitchRise(d));
+  on('.mod', 'click', e => { const m = e.currentTarget.dataset.m; setMod(d, m, !d.mods[m]); });
+  $('.modmix', el).addEventListener('input', e => { d.modMix = +e.target.value; applyMods(d); });
+  holdBtn($('.transform', el), () => { d.transformer = true; }, () => { d.transformer = false; if (!d.gate) d.gateGain = 1; });
   on('.cue', 'click', e => cuePress(d, +e.currentTarget.dataset.i, e.shiftKey));
   on('.cueDel', 'click', () => { d.cueDel = !d.cueDel; $('.cueDel', el).classList.toggle('armed', d.cueDel); });
   render(d);
@@ -1046,6 +1089,10 @@ function resetFx(d) {
   $('.filt', d.el).value = 0;
   d.eq = { low: 0, mid: 0, high: 0 }; d.kill = { low: false, mid: false, high: false }; d.eqAuto = 0;
   $$('.eqr', d.el).forEach(r => { r.value = 0; }); $$('.kill', d.el).forEach(b => b.classList.remove('on'));
+  if (d.scratch) d.scratch = null;
+  d.key = 0; d.oct = 0; d.rise = 0; d.riseAnim = null; d.bend = 0; d.fxLat = 0; d.transformer = false;
+  d.mods = { flanger: false, phaser: false, crush: false, wah: false };
+  $$('.mod,.scr,.prise,.octUp,.octDn', d.el).forEach(b => b.classList.remove('on')); $('.keyVal', d.el).textContent = '0';
 }
 // loop roll with slip: the track keeps running underneath, release returns to where it would have been
 function rollStart(d, len, btn) {
@@ -1158,7 +1205,7 @@ function startReverse(d) {
   if (!d.src.buffer) { flash('Still decoding this file for reverse, try again in a moment'); return; }
   stopReverse(d);
   const bs = ac.createBufferSource(); bs.buffer = reversedSegment(d, 20); bs.playbackRate.value = d.rate;
-  bs.connect(d.src.n.eqL); d.src.n.in.gain.setTargetAtTime(0, ac.currentTime, .004); bs.start();
+  bs.connect(d.src.n.pre); d.src.n.in.gain.setTargetAtTime(0, ac.currentTime, .004); bs.start();
   d.rev = bs;
 }
 function stopReverse(d) {
@@ -1174,9 +1221,309 @@ function backspin(d) {
   const bs = ac.createBufferSource(); bs.buffer = reversedSegment(d, 12);
   bs.playbackRate.setValueAtTime(3.2, t); bs.playbackRate.exponentialRampToValueAtTime(.08, t + dur);
   const g = S.gain(ac, 1); g.gain.setValueAtTime(1, t + dur * .6); g.gain.linearRampToValueAtTime(0, t + dur);
-  bs.connect(g).connect(d.src.n.eqL); d.src.n.in.gain.setTargetAtTime(0, t, .003); bs.start(t); bs.stop(t + dur + .05);
+  bs.connect(g).connect(d.src.n.pre); d.src.n.in.gain.setTargetAtTime(0, t, .003); bs.start(t); bs.stop(t + dur + .05);
   d.rev = bs;
   setTimeout(() => { if (d.rev === bs) { d.src.pause(); stopReverse(d); } }, dur * 1000);
+}
+
+/* =====================================================================
+   SCRATCH, PITCH AND MOD FX (audio-file decks)
+   ===================================================================== */
+// Audio-thread code (same as tools/worklet.js, which has a Node test), loaded from a Blob.
+const WORKLET_SRC = `// BeatMatch audio-thread processors. index.html embeds this same source and loads it from a Blob.
+// Tested in Node by tools/worklet.test.js.
+
+// Two-tap granular pitch shifter with synchronised grains (WSOLA-style).
+// Each read head sweeps through a delay line at speed 'ratio' under a sin² window; the heads are half a
+// grain apart so their gains always sum to 1. When a head starts a new grain it picks, from a small
+// search range, the start point whose waveform best matches the other head, so grains join in phase
+// and the pitch lands exactly on the target. ratio 2 = octave up, 0.5 = octave down, tempo unchanged.
+// ratio 1 passes audio straight through.
+class BMShifter extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'ratio', defaultValue: 1, minValue: 0.25, maxValue: 4, automationRate: 'k-rate' }]; }
+  constructor() {
+    super();
+    this.N = 1 << 15; this.mask = this.N - 1; this.W = 1536; this.S = 384; this.L = 256;
+    this.buf = [new Float32Array(this.N), new Float32Array(this.N)];
+    this.w = 0; this.q = [0, 0.5]; this.d = [this.W / 2, this.W]; this.dir = 0;
+  }
+  rd(c, pos) { const i0 = Math.floor(pos), f = pos - i0, b = this.buf[c]; return b[i0 & this.mask] * (1 - f) + b[(i0 + 1) & this.mask] * f; }
+  // choose a start delay for head k near 'nominal' that lines up with the other head's waveform
+  pick(k, nominal, r) {
+    const o = 1 - k, dOther = this.d[o], L = this.L, S = this.S;
+    let best = -Infinity, bestD = nominal;
+    for (let cand = nominal - S; cand <= nominal + S; cand += 2) {
+      let dot = 0, e = 0;
+      for (let j = 0; j < L; j += 4) {
+        const a = this.rd(0, this.w - cand + j * r), b = this.rd(0, this.w - dOther + j * r);
+        dot += a * b; e += a * a;
+      }
+      const score = e > 1e-9 ? dot / Math.sqrt(e) : 0;
+      if (score > best) { best = score; bestD = cand; }
+    }
+    return bestD;
+  }
+  process(inputs, outputs, params) {
+    const inp = inputs[0], out = outputs[0], r = params.ratio[0], n = out[0].length, W = this.W, S = this.S;
+    const ch = out.length, bypass = Math.abs(r - 1) < 1e-4, dq = Math.abs(1 - r) / W;
+    const dir = r > 1 ? 1 : -1;
+    if (!bypass && dir !== this.dir) { // starting, or crossed ratio 1: lay the heads out afresh
+      this.dir = dir; const start = dir > 0 ? W + 2 + S : 2 + S;
+      this.d = [start - dir * W * 0.0, start - dir * W * 0.5]; this.q = [0, 0.5];
+    }
+    for (let i = 0; i < n; i++) {
+      for (let c = 0; c < ch; c++) { const src = inp[c] || inp[0]; this.buf[c & 1][this.w] = src ? src[i] : 0; }
+      if (bypass) {
+        for (let c = 0; c < ch; c++) { const src = inp[c] || inp[0]; out[c][i] = src ? src[i] : 0; }
+      } else {
+        for (let c = 0; c < ch; c++) {
+          let y = 0;
+          for (let k = 0; k < 2; k++) { const s = Math.sin(Math.PI * this.q[k]); y += this.rd(c & 1, this.w - this.d[k]) * s * s; }
+          out[c][i] = y;
+        }
+        for (let k = 0; k < 2; k++) {
+          this.d[k] += 1 - r; this.q[k] += dq;
+          if (this.q[k] >= 1) { this.q[k] -= 1; this.d[k] = this.pick(k, dir > 0 ? W + 2 + S : 2 + S, r); }
+          if (this.d[k] < 2 || this.d[k] > this.N - W - 4 * S) { this.d[k] = dir > 0 ? W + 2 + S : 2 + S; }
+        }
+      }
+      this.w = (this.w + 1) & this.mask;
+    }
+    if (bypass) this.dir = 0;
+    return true;
+  }
+}
+// Bitcrusher: fewer bits (coarser steps) and sample-and-hold (lower sample rate).
+class BMCrusher extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'bits', defaultValue: 6, minValue: 1, maxValue: 16, automationRate: 'k-rate' }, { name: 'hold', defaultValue: 6, minValue: 1, maxValue: 64, automationRate: 'k-rate' }]; }
+  constructor() { super(); this.cnt = 0; this.last = [0, 0]; }
+  process(inputs, outputs, params) {
+    const inp = inputs[0], out = outputs[0], n = out[0].length;
+    const step = Math.pow(2, 1 - params.bits[0]), hold = Math.max(1, Math.round(params.hold[0]));
+    for (let i = 0; i < n; i++) {
+      if (this.cnt <= 0) { this.cnt = hold; for (let c = 0; c < out.length; c++) { const src = inp[c] || inp[0]; const x = src ? src[i] : 0; this.last[c & 1] = Math.round(x / step) * step; } }
+      this.cnt--;
+      for (let c = 0; c < out.length; c++) out[c][i] = this.last[c & 1];
+    }
+    return true;
+  }
+}
+registerProcessor('bm-shifter', BMShifter);
+registerProcessor('bm-crusher', BMCrusher);
+`;
+let workletReady = null;
+function ensureWorklet() {
+  audio();
+  if (!workletReady) {
+    if (!ac.audioWorklet || typeof AudioWorkletNode === 'undefined') workletReady = Promise.resolve(false);
+    else {
+      const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+      workletReady = ac.audioWorklet.addModule(url).then(() => true).catch(() => false);
+    }
+  }
+  return workletReady;
+}
+const SHIFT_LATENCY = (1536 / 2 + 384); // samples: the pitch shifter's average delay
+
+/* ---------- mod FX: flanger → phaser → crush → wah, each with its own wet/dry ---------- */
+function buildMod(A) {
+  const stage = () => { const st = { in: S.gain(A, 1), dry: S.gain(A, 1), wet: S.gain(A, 0), out: S.gain(A, 1) }; st.in.connect(st.dry).connect(st.out); st.wet.connect(st.out); return st; };
+  const fl = stage(), ph = stage(), cr = stage(), wa = stage();
+  fl.dl = A.createDelay(.05); fl.dl.delayTime.value = .003; fl.fb = S.gain(A, .55); fl.lfo = S.osc(A, 'sine', .25); fl.lfoG = S.gain(A, .0022);
+  fl.in.connect(fl.dl); fl.dl.connect(fl.fb).connect(fl.dl); fl.dl.connect(fl.wet); fl.lfo.connect(fl.lfoG).connect(fl.dl.delayTime); fl.lfo.start();
+  ph.aps = [0, 1, 2, 3].map(() => S.filt(A, 'allpass', 1100, .7)); ph.lfo = S.osc(A, 'sine', .5); ph.lfoG = S.gain(A, 900);
+  let x = ph.in; ph.aps.forEach(ap => { x.connect(ap); x = ap; ph.lfoG.connect(ap.frequency); }); x.connect(ph.wet); ph.lfo.connect(ph.lfoG); ph.lfo.start();
+  wa.bp = S.filt(A, 'bandpass', 1100, 4); wa.boost = S.gain(A, 1.8); wa.lfo = S.osc(A, 'triangle', 4); wa.lfoG = S.gain(A, 750);
+  wa.in.connect(wa.bp).connect(wa.boost).connect(wa.wet); wa.lfo.connect(wa.lfoG).connect(wa.bp.frequency); wa.lfo.start();
+  fl.out.connect(ph.in); ph.out.connect(cr.in); cr.out.connect(wa.in);
+  return { in: fl.in, out: wa.out, flanger: fl, phaser: ph, crush: cr, wah: wa, lfos: [fl.lfo, ph.lfo, wa.lfo] };
+}
+const MODS = ['flanger', 'phaser', 'crush', 'wah'];
+function setMod(d, m, on) {
+  if (!needFile(d)) return;
+  d.mods[m] = on; $(`.mod[data-m=${m}]`, d.el).classList.toggle('on', on);
+  if (m === 'crush' && on && !d.src.n.mod.crush.node) {
+    const n = d.src.n;
+    ensureWorklet().then(ok => {
+      if (!ok) { flash('The bitcrusher needs a newer browser'); setMod(d, 'crush', false); return; }
+      if (d.src && d.src.n === n && !n.mod.crush.node) {
+        const node = new AudioWorkletNode(ac, 'bm-crusher', { outputChannelCount: [2] });
+        node.parameters.get('bits').value = 5; node.parameters.get('hold').value = 7;
+        n.mod.crush.in.connect(node).connect(n.mod.crush.wet); n.mod.crush.node = node; applyMods(d);
+      }
+    });
+  }
+  applyMods(d);
+}
+function applyMods(d) {
+  if (!d.src || d.src.kind !== 'file' || !ac) return;
+  const mix = d.modMix, t = ac.currentTime;
+  MODS.forEach(m => {
+    const st = d.src.n.mod[m], on = d.mods[m] && (m !== 'crush' || st.node);
+    st.wet.gain.setTargetAtTime(on ? mix : 0, t, .02);
+    st.dry.gain.setTargetAtTime(on ? 1 - mix * (m === 'crush' || m === 'wah' ? .9 : .5) : 1, t, .02);
+  });
+}
+function syncModLfos(d, beatSec) {
+  const n = d.src.n.mod, t = ac.currentTime;
+  [[n.flanger.lfo, 1 / (4 * beatSec)], [n.phaser.lfo, 1 / (2 * beatSec)], [n.wah.lfo, 2 / beatSec]].forEach(([o, f]) => {
+    if (Math.abs(o.frequency.value - f) > f * .01) o.frequency.setTargetAtTime(f, t, .05);
+  });
+}
+
+/* ---------- key shift, octave, pitch riser ---------- */
+const pitchSemis = d => d.key + 12 * d.oct + d.rise;
+function renderKey(d) {
+  const k = d.key, o = d.oct;
+  $('.keyVal', d.el).textContent = (k > 0 ? '+' : '') + k + (o ? (o > 0 ? ' +oct' : ' −oct') : '');
+  $('.octUp', d.el).classList.toggle('on', o > 0); $('.octDn', d.el).classList.toggle('on', o < 0);
+}
+async function applyPitch(d) {
+  if (!d.src || d.src.kind !== 'file') return;
+  const n = d.src.n, st = pitchSemis(d), r = Math.pow(2, st / 12);
+  renderKey(d);
+  if (!n.shift) {
+    if (Math.abs(st) < 1e-3 || n.shiftPending) return;
+    n.shiftPending = true;
+    if (!await ensureWorklet()) { flash('Key shift needs a newer browser'); return; }
+    if (!d.src || d.src.n !== n) return;
+    n.shift = new AudioWorkletNode(ac, 'bm-shifter', { outputChannelCount: [2] });
+    n.pre.disconnect(); n.pre.connect(n.shift).connect(n.eqL);
+    return applyPitch(d);
+  }
+  n.shift.parameters.get('ratio').setValueAtTime(r, ac.currentTime);
+  d.fxLat = Math.abs(r - 1) < 1e-4 ? 0 : SHIFT_LATENCY / ac.sampleRate;
+}
+function setKey(d, k) { if (!needFile(d)) return; d.key = clamp(k, -12, 12); applyPitch(d); }
+function setOct(d, o) { if (!needFile(d)) return; d.oct = d.oct === o ? 0 : o; applyPitch(d); }
+// sweep the pitch up an octave into the next bar line (at least 2 bars away), with a rising filter, then drop back
+function pitchRise(d) {
+  if (!needFile(d) || !isPlaying(d)) return;
+  const c = grid(d) || clock(), endN = Math.ceil((c.n + 8) / 4 - 1e-6) * 4;
+  d.riseAnim = { t0: nowMs(), ms: (endN - c.n) * c.beatSec * 1000, filt: d.filt };
+  $('.prise', d.el).classList.add('on');
+}
+function stepRise(d) {
+  const a = d.riseAnim, k = (nowMs() - a.t0) / a.ms;
+  if (k >= 1) { d.riseAnim = null; d.rise = 0; d.filt = a.filt; $('.filt', d.el).value = d.filt; $('.prise', d.el).classList.remove('on'); }
+  else { d.rise = 12 * Math.pow(k, 1.7); d.filt = Math.max(a.filt, .45 * k); }
+  applyPitch(d); applyFilter(d);
+}
+// pitch bend: push the record faster or slower, pitch and all, while held
+function bend(d, dir) {
+  if (!needFile(d)) return;
+  const el = d.src.el; d.bend = dir;
+  if (dir) { setPitchLock(el, false); el.playbackRate = d.requestedRate * (1 + .06 * dir); }
+  else { el.playbackRate = d.requestedRate; setPitchLock(el, d.keylock); }
+}
+
+/* ---------- scratching ---------- */
+const PLATTER_SEC = 1.8; // one turn of a 33⅓ rpm record
+// A voice that plays the decoded track from any position at any speed, forwards or backwards.
+function scratchVoice(d) {
+  const s = d.src; if (s.sv) return s.sv;
+  const sp = ac.createScriptProcessor(512, 1, 2);
+  if (ac.createConstantSource) { const z = ac.createConstantSource(); z.offset.value = 0; z.connect(sp); z.start(); }
+  sp.connect(s.n.pre);
+  const sv = { sp, active: false, pos: 0, target: 0, gain: 0, gTarget: 0, fn: null };
+  sp.onaudioprocess = e => {
+    const L = e.outputBuffer.getChannelData(0), R = e.outputBuffer.getChannelData(1), n = L.length;
+    if (!sv.active || !s.buffer) { L.fill(0); R.fill(0); return; }
+    const buf = s.buffer, sr = buf.sampleRate, bl = buf.getChannelData(0), br = buf.numberOfChannels > 1 ? buf.getChannelData(1) : bl, len = bl.length;
+    let tgt, gt;
+    if (sv.fn) { const r = sv.fn(e.playbackTime + n / sr); tgt = r.pos; gt = r.gain; }
+    else { tgt = sv.pos + (sv.target - sv.pos) * .6; gt = sv.gTarget; }
+    const step = (tgt - sv.pos) / n, gstep = (gt - sv.gain) / n;
+    for (let i = 0; i < n; i++) {
+      sv.pos += step; sv.gain += gstep;
+      let x = sv.pos * sr; if (x < 0) x = 0; else if (x > len - 2) x = len - 2;
+      const i0 = x | 0, f = x - i0;
+      L[i] = (bl[i0] * (1 - f) + bl[i0 + 1] * f) * sv.gain; R[i] = (br[i0] * (1 - f) + br[i0 + 1] * f) * sv.gain;
+    }
+  };
+  s.sv = sv; return sv;
+}
+function scratchStart(d, kind) {
+  if (!needFile(d)) return null;
+  if (!d.src.buffer) { flash('Still decoding this file, try again in a moment'); return null; }
+  audio(); if (d.scratch) scratchEnd(d);
+  const sv = scratchVoice(d), pos = d.src.rawTime();
+  sv.fn = null; sv.pos = pos; sv.target = pos; sv.gain = 0; sv.gTarget = 1; sv.active = true;
+  d.scratch = { kind, slipT: pos, slipPerf: nowMs(), wasPlaying: isPlaying(d) };
+  d.src.n.in.gain.setTargetAtTime(0, ac.currentTime, .004);
+  return sv;
+}
+function scratchEnd(d) {
+  const sc = d.scratch; if (!sc) return;
+  d.scratch = null;
+  const sv = d.src && d.src.sv;
+  if (sv) { const p = sv.pos; sv.fn = null; sv.target = p; sv.gTarget = 0; setTimeout(() => { if (!d.scratch) sv.active = false; }, 60); }
+  $$('.scr', d.el).forEach(b => b.classList.remove('on'));
+  if (!d.src || !d.src.n) return;
+  const slip = $('.slip', d.el).classList.contains('on');
+  const t = slip && sc.wasPlaying ? sc.slipT + (nowMs() - sc.slipPerf) / 1000 * d.rate : (sv ? sv.pos : sc.slipT);
+  seek(d, t);
+  if (sc.wasPlaying && !isPlaying(d)) d.src.play();
+  d.src.n.in.gain.setTargetAtTime(1, ac.currentTime + .015, .004);
+}
+// Beat-locked scratch patterns. motion(phase) is how far the record is pushed (0..1) through one beat.
+const babyMotion = ph => .5 - .5 * Math.cos(2 * Math.PI * ph);
+const SCRATCHES = {
+  baby: { motion: babyMotion, gain: () => 1 },
+  chirp: { motion: babyMotion, gain: ph => (ph < .42 || (ph > .5 && ph < .92)) ? 1 : 0 },
+  flare: { motion: babyMotion, gain: ph => (Math.abs(ph - .25) < .045 || Math.abs(ph - .75) < .045) ? 0 : 1 },
+  scribble: { scribble: true, gain: () => 1 },
+  trans: { motion: babyMotion, gain: (ph, beats) => frac(beats * 8) < .5 ? 1 : 0 }
+};
+function scratchPreset(d, name, beats = 4) {
+  if (d.scratch) { scratchEnd(d); return; }               // press again to stop
+  const sv = scratchStart(d, name); if (!sv) return;
+  const g = grid(d) || clock(), b = g.beatSec, rate = d.rate || 1, p = SCRATCHES[name];
+  const tNow = ac.currentTime, wait = isPlaying(d) ? toNext(g, 1) : 0, p0 = sv.pos, t0 = tNow + wait;
+  const playing = d.scratch.wasPlaying, start = p0 + (playing ? wait * rate : 0), depth = .19 * rate;
+  sv.fn = t => {
+    if (t < t0) return { pos: p0 + (playing ? (t - tNow) * rate : 0), gain: 1 };        // carry on playing until the beat
+    const inBeats = (t - t0) / b, ph = frac(inBeats);
+    const gain = inBeats >= beats ? 0 : p.gain(ph, inBeats);
+    if (p.scribble) return { pos: start + (t - t0) * .25 * rate + .012 * Math.sin(2 * Math.PI * 14 * (t - t0)), gain };
+    return { pos: start + depth * p.motion(ph), gain };
+  };
+  const btn = $(`.scr[data-s=${name}]`, d.el); btn.classList.add('on');
+  const sc = d.scratch;
+  setTimeout(() => { if (d.scratch === sc) scratchEnd(d); }, (wait + beats * b) * 1000);
+}
+function bindScratch(d) {
+  const cv = $('.platter', d.el); let last = 0;
+  const ang = e => { const r = cv.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)); };
+  cv.addEventListener('pointerdown', e => { if (!scratchStart(d, 'drag')) return; capture(cv, e); last = ang(e); cv.classList.add('on'); });
+  cv.addEventListener('pointermove', e => {
+    if (!d.scratch || d.scratch.kind !== 'drag') return;
+    const a = ang(e); let da = a - last; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; last = a;
+    d.src.sv.target += da / (2 * Math.PI) * PLATTER_SEC;
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => cv.addEventListener(ev, () => { if (d.scratch && d.scratch.kind === 'drag') scratchEnd(d); cv.classList.remove('on'); }));
+  // Jog slider: mouse drag scratches; a MIDI jog wheel nudges it and it springs back to centre
+  const jog = $('.jog', d.el); let lastJ = 0, timer = null;
+  jog.addEventListener('input', e => {
+    const v = +jog.value, dv = v - lastJ; lastJ = v;
+    if (!d.scratch) { if (!scratchStart(d, 'jog')) { jog.value = 0; lastJ = 0; return; } }
+    if (d.scratch.kind === 'jog') d.src.sv.target += dv * .9;
+    if (!e.isTrusted) { jog.value = 0; lastJ = 0; }
+    clearTimeout(timer); timer = setTimeout(() => { if (d.scratch && d.scratch.kind === 'jog') scratchEnd(d); jog.value = 0; lastJ = 0; }, 250);
+  });
+}
+function drawPlatter(d) {
+  const cv = $('.platter', d.el); if (!cv.offsetParent) return;
+  const c = sizeCanvas(cv); if (!c) return;
+  const { g, w, h } = c, cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 1, col = COLORS[d.id];
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = '#111418'; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+  g.strokeStyle = '#262c35'; g.lineWidth = 1; for (let r = R * .45; r < R - 2; r += 4) { g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke(); }
+  g.fillStyle = col; g.beginPath(); g.arc(cx, cy, R * .3, 0, 7); g.fill();
+  const pos = d.scratch && d.src && d.src.sv ? d.src.sv.pos : (isReady(d) ? d.src.rawTime() : 0), a = pos / PLATTER_SEC * 2 * Math.PI - Math.PI / 2;
+  g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(cx + Math.cos(a) * R * .34, cy + Math.sin(a) * R * .34); g.lineTo(cx + Math.cos(a) * (R - 3), cy + Math.sin(a) * (R - 3)); g.stroke();
+  g.fillStyle = '#0d0f12'; g.beginPath(); g.arc(cx, cy, 3, 0, 7); g.fill();
 }
 
 /* =====================================================================
@@ -2022,6 +2369,28 @@ const TIPS = [
   ['.deck .rev', 'Hold: play backwards (backmasking). The song keeps running silently, so you drop back in on time.'],
   ['.deck .spin', 'Backspin: a fast reverse spin-down, then the deck stops.'],
   ['.deck .vfx', 'Picture effects in time with the beat: strobe, colour steps, invert, blur, zoom, noir.'],
+  ['.deck .transform', 'Hold: the transformer cut. Chops Deck {D} on and off in fast 1/16 notes. Works on YouTube decks too.'],
+  ['.deck .platter', 'Drag around the record to scratch: clockwise plays forwards, anticlockwise backwards, holding still stops the sound. Audio files only.'],
+  ['.deck .scr[data-s=baby]', 'Baby scratch: the record goes back and forth once per beat, for one bar. Press again to stop early.'],
+  ['.deck .scr[data-s=chirp]', 'Chirp: a baby scratch with quick cuts, so each stroke sounds like a bird chirp. One bar.'],
+  ['.deck .scr[data-s=flare]', 'Flare: back-and-forth strokes where the sound clicks off in the middle of each stroke. One bar.'],
+  ['.deck .scr[data-s=scribble]', 'Scribble: fast, tight wobbles of the record that make a buzzing sound. One bar.'],
+  ['.deck .scr[data-s=trans]', 'Transformer scratch: back-and-forth strokes chopped by fast cuts. One bar.'],
+  ['.deck .slip', 'SLIP on: after a scratch the song carries on as if it never stopped, so it stays in time. Off: it continues from wherever you left the record.'],
+  ['.deck .jog', 'Jog: drag to scratch, or link a MIDI jog wheel with LEARN. It springs back to the middle.'],
+  ['.deck .keyDn', 'Lower the key by one semitone without changing the tempo. Audio files only.'],
+  ['.deck .keyUp', 'Raise the key by one semitone without changing the tempo. Audio files only.'],
+  ['.deck .keyReset', 'Back to the song’s original key.'],
+  ['.deck .octUp', 'One octave up (chipmunk voice), same tempo. Click again to turn off.'],
+  ['.deck .octDn', 'One octave down (deep voice), same tempo. Click again to turn off.'],
+  ['.deck .bendDn', 'Hold: drag the record slower (the pitch drops) to let Deck {D} fall back into time.'],
+  ['.deck .bendUp', 'Hold: push the record faster (the pitch rises) to let Deck {D} catch up.'],
+  ['.deck .prise', 'Pitch riser: sweeps Deck {D} up an octave into the next bar line, then snaps back for the drop.'],
+  ['.deck .mod[data-m=flanger]', 'Flanger: a swooshing jet-plane sweep, one cycle per bar.'],
+  ['.deck .mod[data-m=phaser]', 'Phaser: a swirling, watery sweep every 2 beats.'],
+  ['.deck .mod[data-m=crush]', 'Bitcrusher: gritty, lo-fi, retro video-game sound.'],
+  ['.deck .mod[data-m=wah]', 'Auto-wah: a “wow-wow” filter that opens and closes on every ⅛ note.'],
+  ['.deck .modmix', 'How strong the Mod FX are: left = subtle, right = heavy.'],
   // mixer
   ['.meter', 'Beat offset: how far Deck B’s beat is from Deck A’s. Green band = in time. Needle right = B ahead.'],
   ['#lockBtn', 'BEAT LOCK: automatically pull the following deck back into time whenever it drifts.'],
@@ -2079,7 +2448,7 @@ const TIPS = [
   ['#preSaveA', 'Save Deck A’s current effects as a preset.'], ['#preSaveB', 'Save Deck B’s current effects as a preset.'],
   ['#preDel', 'Delete the chosen preset (your own presets only).']
 ];
-const TIP_TARGET = 'button, input, select, label.filebtn, a.filebtn, canvas.zoom, canvas.overview, .meter, .lights, .stat, #plList .lbl';
+const TIP_TARGET = 'button, input, select, label.filebtn, a.filebtn, canvas.zoom, canvas.overview, canvas.platter, .meter, .lights, .stat, #plList .lbl';
 function tipText(el) {
   if (el.dataset.tip) return el.dataset.tip;
   for (const [sel, txt] of TIPS) if (el.matches(sel)) {
@@ -2186,7 +2555,8 @@ function frame() {
     // loop roll
     if (d.roll && g && isPlaying(d)) { const end = d.roll.start + d.roll.len * g.p; if (est(d) >= end - latFor(d) * d.rate) seek(d, d.roll.start); }
     // gate
-    if (d.gate) {
+    if (d.transformer) { const c = g || clock(); d.gateGain = frac(c.n * 8) < .5 ? 1 : 0; }
+    else if (d.gate) {
       const c = g || clock();
       d.gateGain = d.gate === 'trance'
         ? (TRANCE[((Math.floor(c.n * 4) % 16) + 16) % 16] && frac(c.n * 4) < .75 ? 1 : 0)
@@ -2198,7 +2568,9 @@ function frame() {
       if (Math.abs(n.dl.delayTime.value - bs * .75) > .002) n.dl.delayTime.setTargetAtTime(bs * .75, t, .05);
       if (t > d.tapeBusy && Math.abs(n.tdl.delayTime.value - bs / 2) > .003) n.tdl.delayTime.setTargetAtTime(bs / 2, t, .2);
     }
-    visual(d); drawViz(d); drawWaves(d);
+    if (d.riseAnim) stepRise(d);
+    if (d.src && d.src.kind === 'file' && ac && MODS.some(m => d.mods[m])) syncModLfos(d, (g || clock()).beatSec);
+    visual(d); drawViz(d); drawWaves(d); drawPlatter(d);
   });
   applyVolumes();
   if (ac) {
@@ -2509,6 +2881,84 @@ const CHAPTERS = [
       what: 'Picture effects that pulse with the music: strobe, colour steps, zoom pump and more.',
       tryIt: 'Pick <b>Beat strobe</b> from the <b>Visual</b> menu.',
       act: () => { decks.A.vfx = 'strobe'; $('.deck[data-id=A] .vfx').value = 'strobe'; decks.B.vfx = 'zoom'; $('.deck[data-id=B] .vfx').value = 'zoom'; }, label: 'Strobe + zoom' }
+  ]},
+  { title: 'Scratch & pitch (live demo)', blurb: 'Scratching, key shift, pitch bend and swirling effects, on real tracks.', live: true,
+    prep: async () => {
+      const files = ['A', 'B'].every(id => decks[id].src && decks[id].src.kind === 'file' && decks[id].bpm);
+      if (!files) await ensureDemos();
+      await liveBoth(); $('#xfader').value = .12;
+    }, steps: [
+    { sel: '.deck[data-id=A] .platter', title: 'Scratch the record', dur: 6,
+      what: 'This is Deck A’s record. Drag around it: clockwise plays forwards, anticlockwise backwards, and holding still stops the sound, just like a hand on vinyl. The demo scratches it for you.',
+      listen: 'The classic “wikka-wikka”: the music speeding forwards and backwards with the record, rising and falling in pitch.',
+      tryIt: 'Press and drag in small circles on the record. Let go and the song drops back in, in time.',
+      act: async () => {
+        await liveBoth(true); const d = decks.A; if (!scratchStart(d, 'drag')) return;
+        const p0 = d.src.sv.pos, b = clock().beatSec * 1000;
+        animate(b * 3, k => { if (d.scratch && d.scratch.kind === 'drag') d.src.sv.target = p0 + .22 * Math.sin(k * Math.PI * 6); }, () => scratchEnd(d));
+      }, label: 'Scratch for me' },
+    { sel: '.deck[data-id=A] .scr[data-s=baby]', title: 'Baby scratch', dur: 6,
+      what: 'The first scratch every DJ learns: the record goes back and forth once per beat. The preset starts on the next beat and lasts one bar.',
+      listen: 'Four even “wub-wub” strokes, perfectly in time with Deck B underneath.', tryIt: 'Press BABY.',
+      act: async () => { await liveBoth(true); scratchPreset(decks.A, 'baby'); }, label: 'Baby scratch' },
+    { sel: '.deck[data-id=A] .scr[data-s=chirp]', title: 'Chirp', dur: 6,
+      what: 'A baby scratch where the sound cuts out at the end of each stroke, making short, bird-like chirps.',
+      listen: 'Clipped, high “chirp” sounds instead of smooth strokes.', tryIt: 'Press CHIRP.',
+      act: async () => { await liveBoth(true); scratchPreset(decks.A, 'chirp'); }, label: 'Chirp' },
+    { sel: '.deck[data-id=A] .scr[data-s=flare]', title: 'Flare', dur: 6,
+      what: 'The sound clicks off for an instant in the middle of each stroke, so every movement is split in two.',
+      listen: 'Each stroke broken into two quick bursts.', tryIt: 'Press FLARE.',
+      act: async () => { await liveBoth(true); scratchPreset(decks.A, 'flare'); }, label: 'Flare' },
+    { sel: '.deck[data-id=A] .scr[data-s=scribble]', title: 'Scribble', dur: 6,
+      what: 'Very fast, tiny wobbles of the record while it creeps forward.',
+      listen: 'A buzzing, trembling version of the song.', tryIt: 'Press SCRIBBLE.',
+      act: async () => { await liveBoth(true); scratchPreset(decks.A, 'scribble'); }, label: 'Scribble' },
+    { sel: '.deck[data-id=A] .scr[data-s=trans]', title: 'Transformer scratch', dur: 6,
+      what: 'Back-and-forth strokes chopped by rapid cuts, named after the robot sound effects it imitates.',
+      listen: 'A stuttering, robotic “t-t-t-t” scratch.', tryIt: 'Press TRANSFORMER.',
+      act: async () => { await liveBoth(true); scratchPreset(decks.A, 'trans'); }, label: 'Transformer' },
+    { sel: '.deck[data-id=A] .transform', title: 'TRANSFORM cut (works on YouTube too)', dur: 6,
+      what: 'Hold to chop the deck on and off in fast sixteenth notes while it plays normally. It only switches the volume, so it works on YouTube decks as well.',
+      listen: 'Deck A stuttering in time while it keeps playing.', tryIt: 'Hold TRANSFORM for a beat or two.',
+      act: async () => { await liveBoth(true); decks.A.transformer = true; setTimeout(() => { decks.A.transformer = false; if (!decks.A.gate) decks.A.gateGain = 1; }, beatMs(4)); }, label: 'Transform for a bar' },
+    { sel: '.deck[data-id=A] .slip', title: 'SLIP: stay in time after a scratch',
+      what: 'With SLIP on, the song keeps running silently while you scratch, so when you let go it drops back in exactly where it would have been, still in sync. Turn it off to continue from wherever you left the record.',
+      tryIt: 'Leave SLIP on while you’re learning.' },
+    { sel: '.deck[data-id=A] .jog', title: 'Jog (for MIDI controllers)', dur: 4,
+      what: 'Drag the jog slider to scratch with a mouse, or use MIDI LEARN to link your controller’s jog wheel to it. It springs back to the middle when you let go.',
+      listen: 'Short scratches as the jog moves.', tryIt: 'Drag the jog slider left and right.',
+      act: async () => {
+        await liveBoth(true); const j = $('.deck[data-id=A] .jog'); let i = 0;
+        const iv = setInterval(() => { j.value = (i++ % 10 < 5 ? .05 : -.05); j.dispatchEvent(new Event('input', { bubbles: true })); if (i > 40) clearInterval(iv); }, 30);
+      }, label: 'Wiggle the jog' },
+    { sel: '.deck[data-id=A] .fxkey', title: 'Key shift', dur: 10,
+      what: 'Moves the song up or down in semitones without changing its tempo, so two songs in clashing keys can sound good together. The demo shifts Deck A up 5 semitones for 2 bars, then back.',
+      listen: 'The bass and melody move higher, but the drums keep exactly the same speed and stay in sync.',
+      tryIt: 'Press ♯ +1 a few times, then 0 to reset.',
+      act: async () => { await liveBoth(true); setKey(decks.A, 5); setTimeout(() => setKey(decks.A, 0), beatMs(8)); }, label: '+5 for 2 bars' },
+    { sel: '.deck[data-id=A] .octUp', title: 'Octave up and down', dur: 10,
+      what: 'OCT ↑ makes a chipmunk version and OCT ↓ a deep version, both at the same tempo.',
+      listen: 'One bar high and squeaky, one bar low and heavy, then back to normal.',
+      tryIt: 'Press OCT ↑, then press it again to turn it off.',
+      act: async () => { await liveBoth(true); const d = decks.A; setOct(d, 1); setTimeout(() => setOct(d, -1), beatMs(4)); setTimeout(() => { d.oct = 0; applyPitch(d); }, beatMs(8)); }, label: 'Up, down, back' },
+    { sel: '.deck[data-id=A] .fxbend', title: 'Pitch bend', dur: 8,
+      what: 'Hold BEND + to push the record faster (its pitch rises) and BEND − to hold it back. DJs use it to nudge a song into time by ear.',
+      listen: 'Deck A rising slightly in pitch and pulling ahead (a flam), then dipping and falling back into time.',
+      tryIt: 'Hold BEND + for a moment, then BEND − for the same time.',
+      act: async () => { await liveBoth(true); const d = decks.A; bend(d, 1); setTimeout(() => { bend(d, -1); setTimeout(() => bend(d, 0), 900); }, 900); }, label: 'Bend up, then down' },
+    { sel: '.deck[data-id=A] .prise', title: 'Pitch riser', dur: 14,
+      what: 'Sweeps the whole song up an octave, with a rising filter, so it peaks exactly on a bar line, then snaps back down for the drop.',
+      listen: 'Tension building as Deck A climbs higher and thinner, then the release on the downbeat.',
+      tryIt: 'Press PITCH RISE.',
+      act: async () => { await liveBoth(true); pitchRise(decks.A); }, label: 'Pitch rise' },
+    ...['flanger', 'phaser', 'crush', 'wah'].map(m => ({
+      sel: `.deck[data-id=A] .mod[data-m=${m}]`, dur: 10,
+      title: { flanger: 'Flanger', phaser: 'Phaser', crush: 'Bitcrusher', wah: 'Auto-wah' }[m],
+      what: { flanger: 'A short, sweeping delay that gives the classic jet-plane swoosh, one sweep per bar.', phaser: 'A swirling sweep through the sound, every 2 beats.', crush: 'Fewer bits and a lower sample rate for a gritty, retro video-game sound.', wah: 'A filter that opens and closes on every eighth note, like a wah pedal.' }[m],
+      listen: { flanger: 'A metallic whoosh rising and falling across the bar.', phaser: 'A watery, swirling movement in the hats and synths.', crush: 'Crunchy, fizzy, 8-bit-style distortion.', wah: 'A rhythmic “wow-wow-wow” in time with the beat.' }[m],
+      tryIt: `Press ${m === 'crush' ? 'CRUSH' : m.toUpperCase()}, then MOD MIX to make it subtler or stronger.`,
+      act: async () => { await liveBoth(true); setMod(decks.A, m, true); setTimeout(() => setMod(decks.A, m, false), beatMs(8)); }, label: '2 bars of it'
+    }))
   ]},
   { title: 'Video mix & controllers', blurb: 'Show both videos on one screen, and use DJ hardware.', prep: prepPlaying(true), steps: [
     { sel: '#vjbox', title: 'Video mix',

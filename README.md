@@ -44,9 +44,10 @@ Click **▶ Walkthrough** in the top-right corner. It also opens by itself on yo
 | 4 | Mixing | 4 | Crossfader, EQ and kills, one-press transitions, hot cues |
 | 5 | **Mixer in action (live demo)** | 15 | Every mixer control demonstrated on playing tracks: beat meter, Beat Lock, crossfader, all 5 transitions, every FX pad, quantize, sound masking |
 | 6 | Effects | 8 | Loop roll, gate and brake, filter, echo and tape, reverse, pads, masking, visuals |
-| 7 | Video mix & controllers | 2 | VJ screen, MIDI controller |
-| 8 | Sets, recording & sessions | 5 | Playlist, Auto-DJ, recording, sessions, FX presets |
-| 9 | Your own music | 3 | YouTube links, song files, AUTO on YouTube |
+| 7 | **Scratch & pitch (live demo)** | 17 | Scratching the record, the five scratch presets, TRANSFORM, SLIP, jog, key shift, octaves, pitch bend, pitch riser, flanger, phaser, bitcrusher, auto-wah |
+| 8 | Video mix & controllers | 2 | VJ screen, MIDI controller |
+| 9 | Sets, recording & sessions | 5 | Playlist, Auto-DJ, recording, sessions, FX presets |
+| 10 | Your own music | 3 | YouTube links, song files, AUTO on YouTube |
 
 Each step has a **Try it** action and a **Do it for me** button. Live-demo steps also say what to **🎧 Listen for**. **▶ Auto-play chapter** runs a whole chapter hands-free, like a guided show. The live demo uses your own loaded tracks if both have a BPM, otherwise the practice songs. Each chapter gets the practice songs ready itself, and finished chapters get a ✓.
 
@@ -80,6 +81,16 @@ Every file starts with a kick at exactly 0:00. The BPM is in the filename, so Be
 3. Press **+100ms** on B to hear the flam, then turn on **BEAT LOCK**. B should snap back within about 3 seconds.
 4. Load `demo_C` on Deck A and press **SYNC** on B. The message should say it matched as half/double-time.
 5. Try each effect below while both decks play.
+
+## Scratching, pitch and Mod FX (audio files)
+
+- **Scratch the record:** drag around the platter. Clockwise plays forwards, anticlockwise backwards, and holding still stops the sound, with real vinyl pitch. **Jog** does the same with a slider, or with a MIDI jog wheel through LEARN.
+- **Scratch presets**, one bar long and starting on the next beat: **BABY**, **CHIRP**, **FLARE**, **SCRIBBLE** and **TRANSFORMER**. With **SLIP** on (the default), the song keeps running silently and drops back in, still in sync.
+- **TRANSFORM (hold):** a rhythmic 1/16 on/off cut. It works on YouTube decks too.
+- **Key shift:** ♭/♯ moves the song up to 12 semitones up or down **without changing the tempo**, and **OCT ↑ / OCT ↓** shifts it a whole octave. A pitch shifter on the browser's audio thread does this (`tools/worklet.js`, tested in `tools/worklet.test.js`: octave up and down, +7 and −5 semitones all land on the exact target frequency). The shifter's ~26 ms delay is compensated, so SYNC and the beat meter stay accurate.
+- **BEND − / BEND + (hold):** slow or speed the record by 6%, pitch and all, like pushing a platter.
+- **PITCH RISE:** sweeps the song up an octave with a rising filter into the next bar line, then snaps back for the drop.
+- **Mod FX:** **FLANGER** (one sweep per bar), **PHASER** (every 2 beats), **CRUSH** (bitcrusher) and **WAH** (auto-wah on ⅛ notes), all locked to the tempo. **Mod mix** sets how strong they are.
 
 ## Auto BPM, hot cues, video mix, MIDI
 

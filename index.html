@@ -14,7 +14,10 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
   header{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  header h1{margin:0;font-size:20px;letter-spacing:.12em}
+  header h1{margin:0;font-size:20px;letter-spacing:.12em;line-height:1.1}
+  header .brand{display:flex;flex-direction:column;gap:3px}
+  header .bycredit{font-size:11px;letter-spacing:.08em;color:var(--mute);white-space:nowrap}
+  header .bycredit b{color:#cfd7e2;font-weight:600}
   header .sub{color:var(--mute);font-size:12px}
   header .hbtns{margin-left:auto;display:flex;gap:8px}
   #tourBtn{border-color:var(--warn);color:var(--warn)}
@@ -180,7 +183,7 @@
 </head>
 <body>
 <header>
-  <h1>BEATMATCH</h1>
+  <div class="brand"><h1>BEATMATCH</h1><div class="bycredit">created by <b>PREM CHANDRAN</b> · Mixed Signal Game Studios</div></div>
   <span class="sub header-sub">Two decks · YouTube or audio files · tap tempo · sync · beat lock · FX</span>
   <div class="hbtns">
     <button id="modeBtn" title="Switch between the essentials and every control">Show all controls</button>

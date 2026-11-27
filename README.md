@@ -1,5 +1,7 @@
 # BeatMatch — two-deck tempo sync with FX
 
+Created by **PREM CHANDRAN** (Mixed Signal Game Studios)
+
 Two decks that each play a **YouTube video** or an **audio file**. You can set the tempo, sync the speeds, line up the beats, and add effects.
 
 ## Run it

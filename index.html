@@ -110,7 +110,8 @@
   #tourHead .dots{display:inline-flex;gap:4px}
   #tourHead .dots i{width:7px;height:7px;border-radius:50%;background:#3a424e}
   #tourHead .dots i.past{background:#8a7a3a} #tourHead .dots i.now{background:var(--warn)}
-  #tourCard.center{left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:440px}
+  #tourCard.center{left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:440px;max-height:calc(100vh - 20px);display:flex;flex-direction:column}
+  #tourCard.center #tourBody{overflow:auto;min-height:0}
   #tourBody p.listen{background:#1d2633;border-left:3px solid var(--b);padding:7px 10px;border-radius:6px;color:var(--text)}
   #tourBody #tourAuto{border-color:var(--b);color:var(--b)}
   #tourBody p.try{background:#2a2f22;border-left:3px solid var(--warn);padding:7px 10px;border-radius:6px;color:var(--text)}
@@ -373,7 +374,7 @@
   YouTube audio can't be processed by a web page, so filter, echo, tape, reverse and backspin only work on audio-file decks.
 </footer>
 
-<div class="credit"><img class="studio-logo" src="assets/msgs-logo-256.webp" alt="Mixed Signal Games Studio logo" width="84" height="84" loading="lazy">Created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</div>
+<div class="credit"><img class="studio-logo" src="assets/msgs-logo-256.webp" alt="Mixed Signal Games Studio logo" width="84" height="84">Created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</div>
 
 <template id="deckTpl">
   <h2><span class="dot"></span>DECK <span class="name"></span><span class="src-tag">empty</span></h2>
@@ -3128,7 +3129,7 @@ function renderTour() {
     head.textContent = `WALKTHROUGH · ${CHAPTERS.length} SHORT CHAPTERS · ${totalSteps} STEPS`;
     body.innerHTML = `<h3>How do you want to learn?</h3><p>New here? Start with <b>Quick start</b>: it uses the simple view with only the essentials. Each chapter takes about a minute and gets the music ready for you.</p>` +
       CHAPTERS.map((c, i) => `<button class="chap${tourDone[i] ? ' done' : ''}" data-c="${i}"><span class="num">${tourDone[i] ? '✓' : i + 1}</span><span><b>${c.title}</b><small>${c.blurb} · ${c.steps.length} steps</small></span></button>`).join('');
-    body.insertAdjacentHTML('beforeend', '<p class="note" style="text-align:center;margin:10px 0 0"><img class="studio-logo" src="assets/msgs-logo-128.webp" alt="Mixed Signal Games Studio logo" width="56" height="56" style="width:56px;height:56px;margin:0 auto 8px">BeatMatch, created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</p>');
+    body.insertAdjacentHTML('beforeend', '<p class="note" style="text-align:center;margin:10px 0 0">BeatMatch, created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</p>');
     foot.innerHTML = `<span class="note">${n ? `${n} of ${CHAPTERS.length} chapters done` : 'Tip: every step has a “Do it for me” button.'}</span>` + (n ? '<button id="tourReset">Reset progress</button>' : '');
     $$('.chap', body).forEach(b => b.onclick = () => { audio(); chapterStart(+b.dataset.c); });
     const r = $('#tourReset'); if (r) r.onclick = () => { tourDone = {}; saveDone(); renderTour(); };

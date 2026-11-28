@@ -2,6 +2,8 @@
 
 Created by **PREM CHANDRAN** (MIXED SIGNAL GAMES STUDIO)
 
+<img src="assets/msgs-logo-256.webp" alt="Mixed Signal Games Studio logo" width="96">
+
 Two decks that each play a **YouTube video** or an **audio file**. You can set the tempo, sync the speeds, line up the beats, and add effects.
 
 ## Run it

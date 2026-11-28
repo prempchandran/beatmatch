@@ -32,6 +32,10 @@
   header .bycredit{font-size:11px;letter-spacing:.08em;color:var(--mute)}
   header .bycredit span{white-space:nowrap}
   header .bycredit b{color:#cfd7e2;font-weight:600}
+  .studio-logo{border-radius:50%;display:block;flex:none;box-shadow:0 0 0 1px #2a313b,0 0 14px rgba(190,80,255,.25)}
+  header .studio-logo{width:44px;height:44px;margin-left:6px}
+  .credit .studio-logo{width:84px;height:84px;margin:0 auto 10px}
+  @media (max-width:560px){header .studio-logo{width:34px;height:34px}}
   header .sub{color:var(--mute);font-size:12px}
   header .hbtns{margin-left:auto;display:flex;gap:8px}
   #tourBtn{border-color:var(--warn);color:var(--warn)}
@@ -204,7 +208,7 @@
 </head>
 <body>
 <header>
-  <div class="brandrow"><svg class="logo" viewBox="0 0 160 160" aria-hidden="true"> <path d="M6 96 A74 74 0 0 1 154 96" fill="none" stroke="#2a313b" stroke-width="8" stroke-linecap="round"/> <path d="M6 96 A74 74 0 0 1 52.3 27.4" fill="none" stroke="#ff7a1a" stroke-width="8" stroke-linecap="round"/> <path d="M107.7 27.4 A74 74 0 0 1 154 96" fill="none" stroke="#1a8cff" stroke-width="8" stroke-linecap="round"/> <path d="M69.7 22.7 A74 74 0 0 1 90.3 22.7" fill="none" stroke="#5be38a" stroke-width="8"/> <circle cx="56" cy="96" r="40" fill="#ff7a1a"/> <circle cx="104" cy="96" r="40" fill="#1a8cff"/> <path d="M80 64 A40 40 0 0 1 80 128 A40 40 0 0 1 80 64 Z" fill="#0d0f12"/> <g fill="#0d0f12" fill-opacity="0.8"> <rect x="18" y="90" width="5" height="12" rx="2.5"/><rect x="28" y="84" width="5" height="24" rx="2.5"/><rect x="38" y="76" width="5" height="40" rx="2.5"/><rect x="48" y="84" width="5" height="24" rx="2.5"/><rect x="58" y="90" width="5" height="12" rx="2.5"/> <rect x="97" y="90" width="5" height="12" rx="2.5"/><rect x="107" y="84" width="5" height="24" rx="2.5"/><rect x="117" y="76" width="5" height="40" rx="2.5"/><rect x="127" y="84" width="5" height="24" rx="2.5"/><rect x="137" y="90" width="5" height="12" rx="2.5"/> </g> <line x1="80" y1="96" x2="80" y2="30" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/> <circle cx="80" cy="96" r="8" fill="#ffffff"/> <circle cx="80" cy="96" r="3.5" fill="#0d0f12"/> </svg><div class="brand"><h1>BEATMATCH</h1><div class="bycredit"><span>created by <b>PREM CHANDRAN</b></span> <span>· MIXED SIGNAL GAMES STUDIO</span></div></div></div>
+  <div class="brandrow"><svg class="logo" viewBox="0 0 160 160" aria-hidden="true"> <path d="M6 96 A74 74 0 0 1 154 96" fill="none" stroke="#2a313b" stroke-width="8" stroke-linecap="round"/> <path d="M6 96 A74 74 0 0 1 52.3 27.4" fill="none" stroke="#ff7a1a" stroke-width="8" stroke-linecap="round"/> <path d="M107.7 27.4 A74 74 0 0 1 154 96" fill="none" stroke="#1a8cff" stroke-width="8" stroke-linecap="round"/> <path d="M69.7 22.7 A74 74 0 0 1 90.3 22.7" fill="none" stroke="#5be38a" stroke-width="8"/> <circle cx="56" cy="96" r="40" fill="#ff7a1a"/> <circle cx="104" cy="96" r="40" fill="#1a8cff"/> <path d="M80 64 A40 40 0 0 1 80 128 A40 40 0 0 1 80 64 Z" fill="#0d0f12"/> <g fill="#0d0f12" fill-opacity="0.8"> <rect x="18" y="90" width="5" height="12" rx="2.5"/><rect x="28" y="84" width="5" height="24" rx="2.5"/><rect x="38" y="76" width="5" height="40" rx="2.5"/><rect x="48" y="84" width="5" height="24" rx="2.5"/><rect x="58" y="90" width="5" height="12" rx="2.5"/> <rect x="97" y="90" width="5" height="12" rx="2.5"/><rect x="107" y="84" width="5" height="24" rx="2.5"/><rect x="117" y="76" width="5" height="40" rx="2.5"/><rect x="127" y="84" width="5" height="24" rx="2.5"/><rect x="137" y="90" width="5" height="12" rx="2.5"/> </g> <line x1="80" y1="96" x2="80" y2="30" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/> <circle cx="80" cy="96" r="8" fill="#ffffff"/> <circle cx="80" cy="96" r="3.5" fill="#0d0f12"/> </svg><div class="brand"><h1>BEATMATCH</h1><div class="bycredit"><span>created by <b>PREM CHANDRAN</b></span> <span>· MIXED SIGNAL GAMES STUDIO</span></div></div><img class="studio-logo" src="assets/msgs-logo-128.webp" alt="Mixed Signal Games Studio logo" width="44" height="44"></div>
   <span class="sub header-sub">Two decks · YouTube or audio files · tap tempo · sync · beat lock · FX</span>
   <div class="hbtns">
     <button id="modeBtn" title="Switch between the essentials and every control">Show all controls</button>
@@ -369,7 +373,7 @@
   YouTube audio can't be processed by a web page, so filter, echo, tape, reverse and backspin only work on audio-file decks.
 </footer>
 
-<div class="credit">Created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</div>
+<div class="credit"><img class="studio-logo" src="assets/msgs-logo-256.webp" alt="Mixed Signal Games Studio logo" width="84" height="84" loading="lazy">Created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</div>
 
 <template id="deckTpl">
   <h2><span class="dot"></span>DECK <span class="name"></span><span class="src-tag">empty</span></h2>
@@ -3124,7 +3128,7 @@ function renderTour() {
     head.textContent = `WALKTHROUGH · ${CHAPTERS.length} SHORT CHAPTERS · ${totalSteps} STEPS`;
     body.innerHTML = `<h3>How do you want to learn?</h3><p>New here? Start with <b>Quick start</b>: it uses the simple view with only the essentials. Each chapter takes about a minute and gets the music ready for you.</p>` +
       CHAPTERS.map((c, i) => `<button class="chap${tourDone[i] ? ' done' : ''}" data-c="${i}"><span class="num">${tourDone[i] ? '✓' : i + 1}</span><span><b>${c.title}</b><small>${c.blurb} · ${c.steps.length} steps</small></span></button>`).join('');
-    body.insertAdjacentHTML('beforeend', '<p class="note" style="text-align:center;margin:10px 0 0">BeatMatch, created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</p>');
+    body.insertAdjacentHTML('beforeend', '<p class="note" style="text-align:center;margin:10px 0 0"><img class="studio-logo" src="assets/msgs-logo-128.webp" alt="Mixed Signal Games Studio logo" width="56" height="56" style="width:56px;height:56px;margin:0 auto 8px">BeatMatch, created by <b>PREM CHANDRAN</b> (MIXED SIGNAL GAMES STUDIO)</p>');
     foot.innerHTML = `<span class="note">${n ? `${n} of ${CHAPTERS.length} chapters done` : 'Tip: every step has a “Do it for me” button.'}</span>` + (n ? '<button id="tourReset">Reset progress</button>' : '');
     $$('.chap', body).forEach(b => b.onclick = () => { audio(); chapterStart(+b.dataset.c); });
     const r = $('#tourReset'); if (r) r.onclick = () => { tourDone = {}; saveDone(); renderTour(); };
